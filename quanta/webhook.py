@@ -21,7 +21,7 @@ def send_telegram_message(message):
 def home():
     return "📡 Quanta Webhook is Live"
 
-@app.route("/tradingview", methods=["POST"])
+@app.route("/webhook", methods=["POST"])  # 🔥 FIXED ROUTE
 def webhook():
     try:
         data = request.get_json(force=True)
@@ -34,11 +34,10 @@ def webhook():
         price = data.get("price")
         signal = data.get("signal")
         confidence = data.get("confidence")
-        option_type = data.get("option_type")
         strike = data.get("strike")
         expiry = data.get("expiry")
         session = data.get("session")
-        source = data.get("source", "TradingView")
+        source = "TradingView"
 
         if ticker and price and signal:
             message = (
@@ -48,8 +47,6 @@ def webhook():
                 f"Signal: {signal}\n"
                 f"Confidence: {confidence or 'N/A'}\n"
             )
-            if option_type:
-                message += f"Type: {option_type}\n"
             if strike:
                 message += f"Strike: {strike}\n"
             if expiry:
@@ -57,7 +54,7 @@ def webhook():
             if session:
                 message += f"Session: {session}\n"
         else:
-            message = f"⚠️ Alert received, but missing fields:\n{data}"
+            message = f"⚠️ Alert received but missing fields:\n{data}"
 
         send_telegram_message(message)
         return "✅ Alert forwarded"
@@ -66,4 +63,4 @@ def webhook():
         return "❌ Error", 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)  # 🚨 PORT 10000 not 8080!
+    app.run(host="0.0.0.0", port=8080)  # 🔥 FIXED PORT
