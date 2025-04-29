@@ -1,66 +1,39 @@
 # webhook.py
-from flask import Flask, request
-import requests
+from flask import Flask
+import boto3
 import os
 
 app = Flask(__name__)
 
-def send_telegram_message(message):
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {"chat_id": chat_id, "text": message}
+# Wasabi Settings (from Render environment variables)
+WASABI_ACCESS_KEY = os.getenv('WASABI_ACCESS_KEY')
+WASABI_SECRET_KEY = os.getenv('WASABI_SECRET_KEY')
+WASABI_ENDPOINT = 'https://s3.us-east-1.wasabisys.com'
+BUCKET_NAME = 'quanta-stock-data'
 
-    try:
-        response = requests.post(url, json=payload)
-        print("✅ Telegram response:", response.text)
-    except Exception as e:
-        print("❌ Telegram send error:", e)
-
-@app.route("/")
+@app.route('/')
 def home():
-    return "📡 Quanta Webhook is Live"
+    return "✅ Quanta Realtime Webhook Running"
 
-@app.route("/webhook", methods=["POST"])  # 🔥 FIXED ROUTE
-def webhook():
+@app.route('/test_wasabi')
+def test_wasabi_connection():
     try:
-        data = request.get_json(force=True)
-        print("📩 Incoming JSON:", data)
+        session = boto3.session.Session()
+        s3 = session.client('s3',
+            endpoint_url=WASABI_ENDPOINT,
+            aws_access_key_id=WASABI_ACCESS_KEY,
+            aws_secret_access_key=WASABI_SECRET_KEY
+        )
 
-        if "message" in data:
-            data = data["message"]
+        response = s3.list_objects_v2(Bucket=BUCKET_NAME)
 
-        ticker = data.get("ticker")
-        price = data.get("price")
-        signal = data.get("signal")
-        confidence = data.get("confidence")
-        strike = data.get("strike")
-        expiry = data.get("expiry")
-        session = data.get("session")
-        source = "TradingView"
-
-        if ticker and price and signal:
-            message = (
-                f"📊 {source} Alert:\n"
-                f"Ticker: {ticker}\n"
-                f"Price: {price}\n"
-                f"Signal: {signal}\n"
-                f"Confidence: {confidence or 'N/A'}\n"
-            )
-            if strike:
-                message += f"Strike: {strike}\n"
-            if expiry:
-                message += f"Expiry: {expiry}\n"
-            if session:
-                message += f"Session: {session}\n"
+        if 'Contents' in response:
+            files = [obj['Key'] for obj in response['Contents']]
+            return f"✅ Wasabi Connection Successful. {len(files)} files found:<br>" + "<br>".join(files)
         else:
-            message = f"⚠️ Alert received but missing fields:\n{data}"
-
-        send_telegram_message(message)
-        return "✅ Alert forwarded"
+            return "⚠️ Wasabi Connection OK, but no files found in bucket."
     except Exception as e:
-        print("❌ Webhook error:", e)
-        return "❌ Error", 500
+        return f"❌ Wasabi Connection Failed: {str(e)}"
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)  # 🔥 FIXED PORT
+    app.run(host="0.0.0.0", port=10000)
