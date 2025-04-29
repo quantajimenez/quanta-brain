@@ -1,39 +1,27 @@
 # webhook.py
+
 from flask import Flask
-import boto3
-import os
+from quanta import background_worker  # ✅ NEW: Import background_worker
+from quanta import wasabi_connector  # ✅ Already needed for /test_wasabi
 
 app = Flask(__name__)
 
-# Wasabi Settings (from Render environment variables)
-WASABI_ACCESS_KEY = os.getenv('WASABI_ACCESS_KEY')
-WASABI_SECRET_KEY = os.getenv('WASABI_SECRET_KEY')
-WASABI_ENDPOINT = 'https://s3.us-east-1.wasabisys.com'
-BUCKET_NAME = 'quanta-stock-data'
-
-@app.route('/')
+@app.route("/")
 def home():
-    return "✅ Quanta Realtime Webhook Running"
+    return "Quanta is alive."
 
-@app.route('/test_wasabi')
-def test_wasabi_connection():
+@app.route("/test_wasabi")
+def test_wasabi():
     try:
-        session = boto3.session.Session()
-        s3 = session.client('s3',
-            endpoint_url=WASABI_ENDPOINT,
-            aws_access_key_id=WASABI_ACCESS_KEY,
-            aws_secret_access_key=WASABI_SECRET_KEY
-        )
-
-        response = s3.list_objects_v2(Bucket=BUCKET_NAME)
-
-        if 'Contents' in response:
-            files = [obj['Key'] for obj in response['Contents']]
-            return f"✅ Wasabi Connection Successful. {len(files)} files found:<br>" + "<br>".join(files)
-        else:
-            return "⚠️ Wasabi Connection OK, but no files found in bucket."
+        files = wasabi_connector.list_files_in_wasabi()
+        return f"✅ Wasabi Connection Successful. {len(files)} files found:<br><br>" + "<br>".join(files)
     except Exception as e:
-        return f"❌ Wasabi Connection Failed: {str(e)}"
+        return f"❌ Error connecting to Wasabi: {str(e)}"
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+@app.route("/test_download")
+def test_download():
+    try:
+        background_worker.download_and_extract_files()  # ✅ NEW: Trigger download
+        return "✅ Background worker triggered and completed!"
+    except Exception as e:
+        return f"❌ Error triggering background worker: {str(e)}"
