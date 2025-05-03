@@ -1,4 +1,6 @@
-from flask import request, jsonify
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)  # ✅ Define the Flask app instance
 
 @app.route("/webhook", methods=["POST"])
 def handle_webhook():
@@ -6,7 +8,7 @@ def handle_webhook():
         data = request.get_json()
         print("📩 Webhook received:", data)  # Optional: Log to console
 
-        # Example: forward to voice or analysis module
+        # Forward to voice or analysis module
         from quanta.voice import telegram_alerts
         telegram_alerts.send_insight_alert(data)
 
