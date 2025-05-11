@@ -1,3 +1,5 @@
+print("🚀 Quanta main.py is starting...")
+
 # main.py
 from brain import brain
 from memory import memory
