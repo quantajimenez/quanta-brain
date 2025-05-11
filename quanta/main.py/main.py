@@ -1,6 +1,5 @@
-print("🚀 Quanta main.py is starting...")
-
 # main.py
+
 from brain import brain
 from memory import memory
 from voice import voice
@@ -28,7 +27,7 @@ def start_brain():
     utils.init()
 
 def start_webhook():
-    app.run(host="0.0.0.0", port=10000)  # ✅ Matching port 10000
+    app.run(host="0.0.0.0", port=10000)  # ✅ Port must match Render port settings
 
 if __name__ == "__main__":
     threading.Thread(target=start_brain).start()
