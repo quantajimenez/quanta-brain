@@ -1,3 +1,3 @@
 def send_insight_alert(data):
-    from .voice import send_alert
+    from .speaker import send_alert
     send_alert(data)  # Right now, this just prints to shell/log
