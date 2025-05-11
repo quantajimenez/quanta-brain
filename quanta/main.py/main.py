@@ -1,16 +1,15 @@
 # main.py
-
-from brain import brain
-from memory import memory
-from voice import voice
-from execution import execution
-from clock import clock
-from data import data_manager
-from agents import agent_manager
-from config import config
-from tests import test_runner
-from utils import utils
-from webhook import app  # ✅ Import the real webhook app
+from quanta.brain import brain
+from quanta.memory import memory
+from quanta.voice import voice
+from quanta.execution import execution
+from quanta.clock import clock
+from quanta.data import data_manager
+from quanta.agents import agent_manager
+from quanta.config import config
+from quanta.tests import test_runner
+from quanta.utils import utils
+from quanta.webhook import app  # ✅ Real webhook app
 
 import threading
 
@@ -27,7 +26,7 @@ def start_brain():
     utils.init()
 
 def start_webhook():
-    app.run(host="0.0.0.0", port=10000)  # ✅ Port must match Render port settings
+    app.run(host="0.0.0.0", port=10000)
 
 if __name__ == "__main__":
     threading.Thread(target=start_brain).start()
