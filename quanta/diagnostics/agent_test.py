@@ -1,5 +1,5 @@
-from crews.crew_init import crew_boot
-from utils.logger import setup_logger
+from quanta.crews.crew_init import crew_boot
+from quanta.utils.logger import setup_logger
 
 logger = setup_logger("agent_test")
 
@@ -20,4 +20,3 @@ def run_agent_diagnostics():
 
 if __name__ == "__main__":
     run_agent_diagnostics()
-
