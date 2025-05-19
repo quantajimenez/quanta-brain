@@ -1,4 +1,4 @@
-from utils.logger import setup_logger
+from quanta.utils.logger import setup_logger
 
 class StrategistAgent:
     def __init__(self):
@@ -12,4 +12,3 @@ class StrategistAgent:
         self.logger.info(f"Strategist running task: {task}")
         # Placeholder for real logic
         return f"Strategist ran {task}"
-
