@@ -1,4 +1,4 @@
-from crew.crew_init import crew_boot
+from crews.crew_init import crew_boot
 from utils.logger import setup_logger
 
 logger = setup_logger("agent_test")
