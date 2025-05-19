@@ -9,6 +9,6 @@ class StrategistAgent:
         return True
 
     def run_task(self, task):
-        self.logger.info(f"Strategist running task: {task}")
+        self.logger.info(f"StrategistAgent running task: {task}")
         # Placeholder for real logic
         return f"Strategist ran {task}"
