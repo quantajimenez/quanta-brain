@@ -1,4 +1,4 @@
-from utils.logger import setup_logger
+from quanta.utils.logger import setup_logger
 
 class ExecutorAgent:
     def __init__(self):
@@ -12,4 +12,3 @@ class ExecutorAgent:
         self.logger.info(f"Executor running task: {task}")
         # Placeholder for execution logic
         return f"Executor executed {task}"
-
