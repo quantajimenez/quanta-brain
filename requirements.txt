@@ -11,3 +11,5 @@ faiss-cpu        # For FAISS
 chromadb         # For Chroma, optional
 python-dotenv
 langchain_community
+langchain==0.1.14
+langchain_community==0.0.21
