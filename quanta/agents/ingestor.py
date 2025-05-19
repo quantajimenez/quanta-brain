@@ -1,4 +1,4 @@
-from utils.logger import setup_logger
+from quanta.utils.logger import setup_logger
 
 class IngestorAgent:
     def __init__(self):
@@ -12,4 +12,3 @@ class IngestorAgent:
         self.logger.info(f"Ingestor running task: {task}")
         # Placeholder for ingestion logic
         return f"Ingestor ingested {task}"
-
