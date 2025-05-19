@@ -7,3 +7,6 @@ boto3
 langchain
 crewai
 openai
+faiss-cpu        # For FAISS
+chromadb         # For Chroma, optional
+python-dotenv
