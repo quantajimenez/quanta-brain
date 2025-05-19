@@ -2,7 +2,7 @@ import os
 from langchain.llms import OpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
-from utils.logger import setup_logger
+from quanta.utils.logger import setup_logger
 
 logger = setup_logger("langchain_boot")
 
@@ -19,4 +19,3 @@ def boot_langchain_memory():
 
 if __name__ == "__main__":
     boot_langchain_memory()
-
