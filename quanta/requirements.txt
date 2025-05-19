@@ -1,1 +1,8 @@
-
+flask
+requests
+python-dotenv
+gunicorn
+pandas
+boto3
+langchain
+crewai
