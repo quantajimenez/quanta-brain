@@ -1,7 +1,7 @@
-from agents.strategist import StrategistAgent
-from agents.ingestor import IngestorAgent
-from agents.executor import ExecutorAgent
-from utils.logger import setup_logger
+from quanta.agents.strategist import StrategistAgent
+from quanta.agents.ingestor import IngestorAgent
+from quanta.agents.executor import ExecutorAgent
+from quanta.utils.logger import setup_logger
 
 logger = setup_logger("crew_init")
 
@@ -28,4 +28,3 @@ def crew_boot():
 
 if __name__ == "__main__":
     crew_boot()
-
