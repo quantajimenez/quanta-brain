@@ -1,5 +1,3 @@
-# quanta/integration_test.py
-
 from quanta.crews.crew_init import crew_boot
 from quanta.crews.langchain_boot import boot_langchain_memory
 from quanta.utils.logger import setup_logger
@@ -19,7 +17,6 @@ def run_sample_workflow():
     logger.info(f"StrategistAgent result: {result1}")
 
     # Step 2: Ingestor 'fetches' the idea and stores in memory
-    # (In real life, would fetch from an API, here we just simulate storing)
     logger.info("Ingestor storing idea in vectorstore (simulated)...")
     docs = [{"text": trade_idea}]
     try:
@@ -30,12 +27,12 @@ def run_sample_workflow():
     result2 = agents['ingestor'].run_task(trade_idea)
     logger.info(f"IngestorAgent result: {result2}")
 
-    # Step 3: Executor 'executes' the idea
+    # Step 3: Executor 'executes' the task
     logger.info("Executor executing trade idea (simulated)...")
     result3 = agents['executor'].run_task(trade_idea)
     logger.info(f"ExecutorAgent result: {result3}")
 
-    logger.info("Integration test complete.")
+    logger.info("Sample workflow complete.")
 
 if __name__ == "__main__":
     run_sample_workflow()
