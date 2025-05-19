@@ -12,3 +12,4 @@ class IngestorAgent:
         self.logger.info(f"Ingestor running task: {task}")
         # Placeholder for ingestion logic
         return f"Ingestor ingested {task}"
+
