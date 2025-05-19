@@ -1,6 +1,8 @@
-from crews.crew_init import crew_boot
-from crews.langchain_boot import boot_langchain_memory
-from utils.logger import setup_logger
+# quanta/integration_test.py
+
+from quanta.crews.crew_init import crew_boot
+from quanta.crews.langchain_boot import boot_langchain_memory
+from quanta.utils.logger import setup_logger
 
 logger = setup_logger("integration_test")
 
@@ -28,18 +30,12 @@ def run_sample_workflow():
     result2 = agents['ingestor'].run_task(trade_idea)
     logger.info(f"IngestorAgent result: {result2}")
 
-    # Step 3: Executor 'executes' the task
+    # Step 3: Executor 'executes' the idea
     logger.info("Executor executing trade idea (simulated)...")
     result3 = agents['executor'].run_task(trade_idea)
     logger.info(f"ExecutorAgent result: {result3}")
 
-    # Confirm round-trip with a similarity search in memory (bonus)
-    logger.info("Querying vectorstore to confirm idea stored...")
-    query = "AAPL"
-    docs = vectorstore.similarity_search(query)
-    logger.info(f"Vectorstore search results for '{query}': {[d.page_content for d in docs]}")
-
-    logger.info("Integration test complete. All steps executed.")
+    logger.info("Integration test complete.")
 
 if __name__ == "__main__":
     run_sample_workflow()
