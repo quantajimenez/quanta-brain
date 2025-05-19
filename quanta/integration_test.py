@@ -18,7 +18,6 @@ def run_sample_workflow():
 
     # Step 2: Ingestor 'fetches' the idea and stores in memory
     logger.info("Ingestor storing idea in vectorstore (simulated)...")
-    docs = [{"text": trade_idea}]
     try:
         vectorstore.add_texts([trade_idea])
         logger.info("IngestorAgent stored trade idea in vectorstore.")
@@ -27,12 +26,10 @@ def run_sample_workflow():
     result2 = agents['ingestor'].run_task(trade_idea)
     logger.info(f"IngestorAgent result: {result2}")
 
-    # Step 3: Executor 'executes' the task
+    # Step 3: Executor 'executes' the idea
     logger.info("Executor executing trade idea (simulated)...")
     result3 = agents['executor'].run_task(trade_idea)
     logger.info(f"ExecutorAgent result: {result3}")
-
-    logger.info("Sample workflow complete.")
 
 if __name__ == "__main__":
     run_sample_workflow()
