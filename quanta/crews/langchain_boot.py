@@ -2,7 +2,7 @@ import os
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
-from utils.logger import setup_logger
+from quanta.utils.logger import setup_logger
 
 logger = setup_logger("langchain_boot")
 
