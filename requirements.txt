@@ -6,3 +6,4 @@ pandas
 boto3
 langchain
 crewai
+openai
