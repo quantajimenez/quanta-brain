@@ -4,13 +4,15 @@ python-dotenv
 gunicorn
 pandas
 boto3
-langchain
 crewai
 openai
 faiss-cpu        # For FAISS
 chromadb         # For Chroma, optional
-python-dotenv
 langchain==0.1.14
 langchain_community==0.0.30
 langchain_openai==0.0.8
+fastapi
+uvicorn
+twilio
+telegram
 
