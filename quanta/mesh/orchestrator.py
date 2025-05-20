@@ -36,6 +36,32 @@ class AgentMeshOrchestrator:
                     self.logger.error(f"Agent {name} error: {e}")
             time.sleep(10)
 
+    def restart_agent(self, agent_name):
+        self.logger.info(f"Restarting agent: {agent_name}")
+        if agent_name in self.agents:
+            agent_class = type(self.agents[agent_name])
+            self.agents[agent_name] = agent_class()
+            self.status[agent_name] = "restarted"
+            self.logger.info(f"Agent {agent_name} restarted successfully.")
+        else:
+            self.logger.error(f"Agent {agent_name} not found for restart.")
+
+    def start_agent(self, agent_name):
+        self.logger.info(f"Starting agent: {agent_name}")
+        if agent_name in self.agents:
+            self.status[agent_name] = "running"
+            self.logger.info(f"Agent {agent_name} started.")
+        else:
+            self.logger.error(f"Cannot start unknown agent: {agent_name}")
+
+    def stop_agent(self, agent_name):
+        self.logger.info(f"Stopping agent: {agent_name}")
+        if agent_name in self.agents:
+            self.status[agent_name] = "stopped"
+            self.logger.info(f"Agent {agent_name} stopped.")
+        else:
+            self.logger.error(f"Agent {agent_name} not found for stop.")
+
 if __name__ == "__main__":
     orchestrator = AgentMeshOrchestrator()
     threading.Thread(target=orchestrator.monitor_agents).start()
