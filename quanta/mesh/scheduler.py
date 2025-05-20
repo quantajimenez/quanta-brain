@@ -20,7 +20,6 @@ class MeshScheduler:
             if event:
                 event_data = event.decode()
                 self.logger.info(f"Received event: {event_data}")
-                # Event type: restart:<agent_name>
                 if event_data.startswith("restart:"):
                     agent_name = event_data.split(":")[1]
                     try:
@@ -28,6 +27,20 @@ class MeshScheduler:
                         self.logger.info(f"Restarted agent: {agent_name}")
                     except Exception as e:
                         self.logger.error(f"Error restarting agent {agent_name}: {e}")
+                elif event_data.startswith("start:"):
+                    agent_name = event_data.split(":")[1]
+                    try:
+                        self.orchestrator.start_agent(agent_name)
+                        self.logger.info(f"Started agent: {agent_name}")
+                    except Exception as e:
+                        self.logger.error(f"Error starting agent {agent_name}: {e}")
+                elif event_data.startswith("stop:"):
+                    agent_name = event_data.split(":")[1]
+                    try:
+                        self.orchestrator.stop_agent(agent_name)
+                        self.logger.info(f"Stopped agent: {agent_name}")
+                    except Exception as e:
+                        self.logger.error(f"Error stopping agent {agent_name}: {e}")
                 else:
                     self.logger.info(f"No handler for event: {event_data}")
             time.sleep(1)
