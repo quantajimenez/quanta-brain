@@ -6,8 +6,8 @@ import os
 
 class MeshAuditLogger:
     def __init__(self, filename=None):
-        # Default: logs/mesh_audit.log inside quanta root; create dir if not exist
-        logdir = os.path.join(os.path.dirname(__file__), "..", "..", "logs")
+        # Use persistent disk on Render (or fallback to repo logs/ in dev)
+        logdir = "/logs" if os.path.isdir("/logs") else os.path.join(os.path.dirname(__file__), "..", "..", "logs")
         os.makedirs(logdir, exist_ok=True)
         self.filename = filename or os.path.join(logdir, "mesh_audit.log")
         self.lock = threading.Lock()
