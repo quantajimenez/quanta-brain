@@ -6,7 +6,7 @@ import redis
 from quanta.utils.logger import setup_logger
 
 class MeshScheduler:
-    def __init__(self, redis_url="redis://localhost:6379/0"):
+    def __init__(self, redis_url="rediss://default:AVe0AAIjcDFiNjY1Mjc1NDIwNDE0YjdkOWJhMjdmOWEzMzMzMzBiOXAxMA@driven-pangolin-22452.upstash.io:6379"):
         self.logger = setup_logger("MeshScheduler")
         self.redis = redis.Redis.from_url(redis_url)
         self.keep_running = True
