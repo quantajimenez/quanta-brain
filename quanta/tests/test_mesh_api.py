@@ -2,11 +2,25 @@
 
 import requests
 
-def test_api():
+def check_api():
     base_url = "http://localhost:12000"
-    print("GET /agents:", requests.get(f"{base_url}/agents").json())
-    print("GET /mesh/health:", requests.get(f"{base_url}/mesh/health").json())
-    print("GET /audit/logs:", requests.get(f"{base_url}/audit/logs?n=10").json())
+    endpoints = [
+        ("/agents", "GET"),
+        ("/mesh/health", "GET"),
+        ("/audit/logs?n=5", "GET"),
+    ]
+    print("\n[API ENDPOINT TEST]")
+    for route, method in endpoints:
+        url = f"{base_url}{route}"
+        try:
+            if method == "GET":
+                resp = requests.get(url)
+            else:
+                resp = requests.post(url)
+            print(f"{method} {route} -> status {resp.status_code}")
+            print(resp.json())
+        except Exception as e:
+            print(f"ERROR on {method} {route}: {e}")
 
 if __name__ == "__main__":
-    test_api()
+    check_api()
