@@ -10,7 +10,10 @@ from quanta.agents import agent_manager
 from quanta.config import config
 from quanta.tests import test_runner
 from quanta.utils import utils
-from quanta.webhook import app  # ✅ Correct relative path
+
+# Import the new webhook app and resilience poller
+from quanta.ingest.webhook_listener import app as ingest_app
+from quanta.ingest.resilience import start_poller
 
 import threading
 
@@ -26,9 +29,13 @@ def start_brain():
     test_runner.init()
     utils.init()
 
-def start_webhook():
-    app.run(host="0.0.0.0", port=10000)  # ✅ Ensure webhook is reachable
+def start_ingest_webhook():
+    # If FastAPI: use uvicorn to serve the app
+    import uvicorn
+    uvicorn.run("quanta.ingest.webhook_listener:app", host="0.0.0.0", port=10000, reload=False)
 
 if __name__ == "__main__":
     threading.Thread(target=start_brain).start()
-    threading.Thread(target=start_webhook).start()
+    threading.Thread(target=start_poller).start()
+    threading.Thread(target=start_ingest_webhook).start()
+    # Add other agents/threads as needed
