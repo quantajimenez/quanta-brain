@@ -16,3 +16,6 @@ uvicorn
 twilio
 telegram
 
+# New for health monitoring
+psutil
+redis
