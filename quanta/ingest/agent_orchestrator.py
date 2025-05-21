@@ -1,7 +1,7 @@
-
 import logging
 import subprocess
 import time
+import requests
 
 logger = logging.getLogger("ProcessOrchestrator")
 logger.setLevel(logging.INFO)
@@ -17,6 +17,8 @@ AGENTS = [
     # Add more agents here as you scale (e.g., "quanta.analyze.stock_analyzer")
 ]
 
+HEALTH_URL = "http://localhost:8181/health"  # Change if deploying on different host/port
+
 def start_agent(module):
     logger.info(f"Starting agent: {module}")
     try:
@@ -26,6 +28,14 @@ def start_agent(module):
     except Exception as e:
         logger.error(f"Failed to start {module}: {e}")
         return None
+
+def report_orchestrator_health():
+    try:
+        # This would POST to your agent_status_server if you expand with a POST endpoint
+        requests.get(HEALTH_URL, timeout=2)
+        logger.info("Health check: orchestrator is alive.")
+    except Exception as e:
+        logger.warning(f"Orchestrator health check failed: {e}")
 
 def main():
     logger.info("Launching all core agents via orchestrator...")
@@ -41,6 +51,7 @@ def main():
                 if proc.poll() is not None:  # Process died
                     logger.warning(f"Agent {AGENTS[i]} terminated unexpectedly. Restarting...")
                     processes[i] = start_agent(AGENTS[i])
+            report_orchestrator_health()
             time.sleep(60)  # Monitor every 1 minute
     except KeyboardInterrupt:
         logger.info("Shutting down all agents...")
