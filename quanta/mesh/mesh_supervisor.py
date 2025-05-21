@@ -26,3 +26,15 @@ class MeshSupervisor:
         if self.thread:
             self.health_audit.stop()
             self.thread.join()
+
+if __name__ == "__main__":
+    supervisor = MeshSupervisor(health_interval=5)
+    supervisor.start()
+    print("MeshSupervisor is running. Press Ctrl+C to stop.")
+    try:
+        while True:
+            pass  # Keep the script alive
+    except KeyboardInterrupt:
+        print("\nStopping MeshSupervisor...")
+        supervisor.stop()
+        print("Supervisor stopped.")
