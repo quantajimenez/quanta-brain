@@ -15,7 +15,7 @@ agent_health_cache = {}
 
 def store_beacon(beacon):
     agent = beacon["agent"]
-    agent_health_cache[agent] = {
+    data = {
         "timestamp": beacon["timestamp"],
         "uptime": beacon["uptime"],
         "memory_usage": beacon["memory_usage"],
@@ -23,7 +23,9 @@ def store_beacon(beacon):
         "queue_length": beacon["queue_length"],
         "last_updated": datetime.utcnow().isoformat()
     }
+    redis_conn.hset("quanta:agent_health", agent, json.dumps(data))
     logger.info(f"✅ Stored health status for {agent}")
+
 
 def listen():
     pubsub = redis_conn.pubsub()
