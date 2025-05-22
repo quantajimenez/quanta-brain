@@ -1,30 +1,31 @@
-import redis
 import os
+import redis
 import time
 
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PORT = int(os.getenv("REDIS_PORT"))
-REDIS_USERNAME = os.getenv("REDIS_USERNAME")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-
-r = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    username=REDIS_USERNAME,
-    password=REDIS_PASSWORD,
-    ssl=True
-)
+def connect_redis():
+    return redis.Redis(
+        host=os.getenv("REDIS_HOST"),
+        port=int(os.getenv("REDIS_PORT")),
+        username=os.getenv("REDIS_USERNAME"),
+        password=os.getenv("REDIS_PASSWORD"),
+        ssl=True,
+        decode_responses=True  # So you don't get b'strings'
+    )
 
 def worker_loop():
+    r = connect_redis()
+    print("ML Agent Worker is running and connected to Redis...")
     while True:
         job = r.brpop("quanta_jobs", timeout=10)
         if job:
-            job_name = job[1].decode()
-            print(f"[Worker] Processing job: {job_name}")
-            # Insert real ML task or placeholder here
-            time.sleep(2)
+            _, job_data = job
+            print(f"[Worker] Picked up job: {job_data}")
+            # --- Dummy ML logic; replace with real model inference ---
+            result = f"ML processed: {job_data}"
+            r.lpush("quanta_results", result)
+            print(f"[Worker] Job complete, result pushed to quanta_results.")
         else:
-            print("[Worker] No jobs in queue. Waiting...")
+            print("[Worker] No jobs found, waiting...")
 
 if __name__ == "__main__":
     worker_loop()
