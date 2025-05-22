@@ -19,3 +19,5 @@ telegram
 # New for health monitoring
 psutil
 redis
+requests
+polygon-api-client
