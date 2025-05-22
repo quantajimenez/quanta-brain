@@ -8,7 +8,6 @@ TICKER = "SPY"
 START_DATE = "2024-01-01"
 END_DATE = "2024-01-01"  # Only 1 day for your test
 
-# Write to Render's persistent disk
 OUT_DIR = "/data/polygon/SPY"
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -42,6 +41,18 @@ def main():
         with open(out_path, "w") as f:
             json.dump([bar.__dict__ for bar in bars], f)
         print(f"Saved data to {out_path}")
+
+        # LOG FILE SIZE AND FIRST FEW LINES HERE
+        try:
+            file_size = os.path.getsize(out_path)
+            print(f"File size: {file_size} bytes")
+
+            with open(out_path, "r") as f:
+                lines = f.readlines()
+                # Print only the first 3 lines for brevity
+                print(f"First 3 lines of file:\n{''.join(lines[:3])}")
+        except Exception as e:
+            print(f"Error reading output file for logs: {e}")
 
 if __name__ == "__main__":
     main()
