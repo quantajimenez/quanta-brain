@@ -1,26 +1,27 @@
-import redis
 import os
+import redis
 import time
 
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PORT = int(os.getenv("REDIS_PORT"))
-REDIS_USERNAME = os.getenv("REDIS_USERNAME")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-
-r = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    username=REDIS_USERNAME,
-    password=REDIS_PASSWORD,
-    ssl=True
-)
+def connect_redis():
+    return redis.Redis(
+        host=os.getenv("REDIS_HOST"),
+        port=int(os.getenv("REDIS_PORT")),
+        username=os.getenv("REDIS_USERNAME"),
+        password=os.getenv("REDIS_PASSWORD"),
+        ssl=True,
+        decode_responses=True
+    )
 
 def produce_jobs():
-    for i in range(10):
-        job = f"ML_JOB_{i}"
-        r.lpush("quanta_jobs", job)
-        print(f"Produced job: {job}")
-        time.sleep(1)  # Simulate staggered jobs
+    r = connect_redis()
+    print("Job Producer is running and connected to Redis...")
+    job_id = 1
+    while True:
+        job_data = f"Job-{job_id} | payload: test-data"
+        r.lpush("quanta_jobs", job_data)
+        print(f"[Producer] Pushed job: {job_data}")
+        job_id += 1
+        time.sleep(5)  # Produce a new job every 5 seconds (adjust as needed)
 
 if __name__ == "__main__":
     produce_jobs()
