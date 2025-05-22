@@ -2,12 +2,11 @@ import os
 import json
 import datetime
 from polygon import RESTClient
-from tqdm import tqdm
 
 POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "YOUR_POLYGON_API_KEY")
-TICKERS = ["SPY", "AAPL", "NVDA", "TSLA"]
-START_DATE = "2024-01-01"    # Use 'YYYY-MM-DD' for 1 month (adjust as needed)
-END_DATE = "2024-01-31"      # Inclusive; can automate this to today for rolling ingest
+TICKERS = ["SPY"]                 # TEST: Only one ticker!
+START_DATE = "2024-01-02"         # TEST: Only 2 days!
+END_DATE = "2024-01-03"
 OUTPUT_BASE = "quanta/data/polygon"
 
 def fetch_and_save(client, ticker, date):
@@ -26,7 +25,6 @@ def fetch_and_save(client, ticker, date):
         if not bars:
             print(f"[NO DATA] {ticker} {date}")
             return
-        # --- Create output directory if missing ---
         ticker_dir = os.path.join(OUTPUT_BASE, ticker)
         os.makedirs(ticker_dir, exist_ok=True)
         out_path = os.path.join(ticker_dir, f"{date}.json")
@@ -45,5 +43,5 @@ if __name__ == "__main__":
     start = datetime.datetime.strptime(START_DATE, "%Y-%m-%d")
     end = datetime.datetime.strptime(END_DATE, "%Y-%m-%d")
     for ticker in TICKERS:
-        for date in tqdm(list(daterange(start, end)), desc=f"{ticker}"):
+        for date in daterange(start, end):
             fetch_and_save(client, ticker, date)
