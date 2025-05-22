@@ -1,83 +1,55 @@
-# quanta/ingest/polygon_s3_ingest.py
-
-import boto3
-from botocore.config import Config
 import os
 import gzip
 import pandas as pd
-from datetime import datetime
+import concurrent.futures
+import logging
+import boto3
+from botocore.config import Config
+from quanta.crews.langchain_boot import boot_langchain_memory
 
-# --- S3 Credentials (Load from environment variables) ---
-POLYGON_ACCESS_KEY = os.getenv('POLYGON_S3_ACCESS_KEY')
-POLYGON_SECRET_KEY = os.getenv('POLYGON_S3_SECRET_KEY')
+TICKERS = ["NVDA", "AAPL", "TSLA", "SPY"]
+S3_BUCKET = "flatfiles"
+S3_PREFIX = "us_stocks_sip/minute_aggs_v1"
+YEARS = range(2004, 2025)  # Or narrower for initial test
+MONTHS = range(1, 13)
 
-if not POLYGON_ACCESS_KEY or not POLYGON_SECRET_KEY:
-    raise Exception("Polygon S3 credentials not set in environment variables.")
+# Polygon S3 endpoint (from docs)
+ENDPOINT_URL = "https://files.polygon.io"
 
-session = boto3.Session(
-    aws_access_key_id=POLYGON_ACCESS_KEY,
-    aws_secret_access_key=POLYGON_SECRET_KEY
-)
+def s3_session():
+    return boto3.Session(
+        aws_access_key_id=os.getenv("POLYGON_S3_KEY"),
+        aws_secret_access_key=os.getenv("POLYGON_S3_SECRET"),
+    )
 
-s3 = session.client(
-    's3',
-    endpoint_url='https://files.polygon.io',
-    config=Config(signature_version='s3v4')
-)
+def ingest_ticker(ticker):
+    llm, embeddings, vectorstore = boot_langchain_memory()
+    s3 = s3_session().client('s3', endpoint_url=ENDPOINT_URL, config=Config(signature_version='s3v4'))
+    for year in YEARS:
+        for month in MONTHS:
+            for day in range(1, 32):  # Safe for calendar, will skip non-existent days
+                key = f"{S3_PREFIX}/{year}/{month:02d}/{year}-{month:02d}-{day:02d}.csv.gz"
+                try:
+                    local_path = f"/tmp/{ticker}_{year}_{month:02d}_{day:02d}.csv.gz"
+                    s3.download_file(S3_BUCKET, key, local_path)
+                    with gzip.open(local_path, 'rt') as f:
+                        df = pd.read_csv(f)
+                    df = df[df['ticker'] == ticker]
+                    records = df.astype(str).apply(lambda row: ','.join(row), axis=1).tolist()
+                    batch_size = 1000
+                    for i in range(0, len(records), batch_size):
+                        batch = records[i:i + batch_size]
+                        vectorstore.add_texts(batch)
+                    logging.info(f"Ingested {len(df)} bars for {ticker} {year}-{month:02d}-{day:02d}")
+                    os.remove(local_path)
+                except Exception as e:
+                    logging.warning(f"File {key} not found or error: {e}")
+                    continue
 
-# --- Download Parameters ---
-year = '2025'
-month = '05'
-prefix = f'us_stocks_sip/minute_aggs_v1/{year}/{month}/'
-output_dir = f'downloads/{year}/{month}'
-os.makedirs(output_dir, exist_ok=True)
+def main():
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        executor.map(ingest_ticker, TICKERS)
 
-response = s3.list_objects_v2(Bucket='flatfiles', Prefix=prefix)
-files = response.get('Contents', [])
-
-if not files:
-    print("No files found.")
-    exit(1)
-
-obj = files[0]
-filename = obj['Key'].split('/')[-1]
-local_path = os.path.join(output_dir, filename)
-print(f"Downloading {obj['Key']} --> {local_path}")
-s3.download_file('flatfiles', obj['Key'], local_path)
-print(f"Done: {local_path}")
-
-print("\nDecompressing and previewing CSV contents...")
-with gzip.open(local_path, 'rt') as f:
-    df = pd.read_csv(f)
-
-print("Loaded DataFrame shape:", df.shape)
-print("Columns:", df.columns.tolist())
-print("First 5 rows:")
-print(df.head())
-
-TARGET_TICKERS = ['SPY', 'TSLA', 'NVDA', 'AAPL']
-df = df[df['ticker'].isin(TARGET_TICKERS)]
-print(f"Filtered DataFrame shape: {df.shape}")
-
-def ingest_minute_bar(row):
-    event = {
-        "ticker": row['ticker'],
-        "event_type": "stock_bar",
-        "timestamp": int(row['window_start']),
-        "datetime": datetime.utcfromtimestamp(int(str(row['window_start'])[:10])).isoformat() + "Z",
-        "open": row['open'],
-        "high": row['high'],
-        "low": row['low'],
-        "close": row['close'],
-        "volume": row['volume'],
-        "num_trades": row['transactions']
-    }
-    print(event)
-
-print("\nIngesting first 10 bars as sample:")
-for idx, row in df.iterrows():
-    ingest_minute_bar(row)
-    if idx >= 9:
-        break
-
-print(f"\nParsed {min(10, len(df))} 1-min bar events (sample) for {TARGET_TICKERS}")
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    main()
