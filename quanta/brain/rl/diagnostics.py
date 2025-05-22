@@ -7,4 +7,3 @@ def run_self_diagnostics(model):
     """
     print("[ML DIAGNOSTICS] Running diagnostics...")
     return {"drift": False}
-
