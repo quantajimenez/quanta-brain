@@ -1,48 +1,49 @@
 import os
-import requests
-import time
-from datetime import datetime, timedelta
+import json
+import datetime
+from polygon import RESTClient
+from tqdm import tqdm
 
-# CONFIGURE
-API_KEY = os.environ.get("POLYGON_API_KEY", "zxrVbIvTfgf8YXteVAS1NajfZwPrWRs")  # Replace with your production key or keep env var
-TICKERS = ["NVDA", "AAPL", "TSLA", "SPY"]
-START_DATE = datetime(2024, 1, 1)
-END_DATE = datetime(2024, 1, 31)
-DATA_ROOT = os.path.join(os.path.dirname(__file__), "..", "..", "data", "polygon")
+POLYGON_API_KEY = os.getenv("POLYGON_API_KEY", "YOUR_POLYGON_API_KEY")
+TICKERS = ["SPY", "AAPL", "NVDA", "TSLA"]
+START_DATE = "2024-01-01"    # Use 'YYYY-MM-DD' for 1 month (adjust as needed)
+END_DATE = "2024-01-31"      # Inclusive; can automate this to today for rolling ingest
+OUTPUT_BASE = "quanta/data/polygon"
 
-def fetch_bars(ticker, date_str):
-    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/minute/{date_str}/{date_str}?adjusted=true&sort=asc&apiKey={API_KEY}"
-    resp = requests.get(url)
-    resp.raise_for_status()
-    return resp.json()
+def fetch_and_save(client, ticker, date):
+    try:
+        resp = client.stocks_equities_aggregates(
+            ticker=ticker,
+            multiplier=1,
+            timespan="minute",
+            from_=date,
+            to=date,
+            adjusted=True,
+            sort="asc",
+            limit=50000
+        )
+        bars = resp['results'] if 'results' in resp else []
+        if not bars:
+            print(f"[NO DATA] {ticker} {date}")
+            return
+        # --- Create output directory if missing ---
+        ticker_dir = os.path.join(OUTPUT_BASE, ticker)
+        os.makedirs(ticker_dir, exist_ok=True)
+        out_path = os.path.join(ticker_dir, f"{date}.json")
+        with open(out_path, "w") as f:
+            json.dump(bars, f)
+        print(f"[SUCCESS] {ticker} {date} -> {out_path} ({len(bars)} bars)")
+    except Exception as e:
+        print(f"[ERROR] {ticker} {date} {e}")
 
-def ensure_dir(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
-
-def main():
-    ensure_dir(DATA_ROOT)
-    for ticker in TICKERS:
-        ticker_dir = os.path.join(DATA_ROOT, ticker)
-        ensure_dir(ticker_dir)
-        current_date = START_DATE
-        while current_date <= END_DATE:
-            date_str = current_date.strftime("%Y-%m-%d")
-            outpath = os.path.join(ticker_dir, f"{date_str}.json")
-            if os.path.exists(outpath):
-                print(f"[SKIP] {ticker} {date_str} already exists")
-            else:
-                try:
-                    print(f"[FETCH] {ticker} {date_str}")
-                    data = fetch_bars(ticker, date_str)
-                    with open(outpath, "w") as f:
-                        import json
-                        json.dump(data, f)
-                    print(f"[SUCCESS] {ticker} {date_str}")
-                    time.sleep(0.5)  # throttle to avoid rate limits
-                except Exception as e:
-                    print(f"[ERROR] {ticker} {date_str}: {e}")
-            current_date += timedelta(days=1)
+def daterange(start_date, end_date):
+    for n in range((end_date - start_date).days + 1):
+        yield (start_date + datetime.timedelta(n)).strftime("%Y-%m-%d")
 
 if __name__ == "__main__":
-    main()
+    client = RESTClient(POLYGON_API_KEY)
+    start = datetime.datetime.strptime(START_DATE, "%Y-%m-%d")
+    end = datetime.datetime.strptime(END_DATE, "%Y-%m-%d")
+    for ticker in TICKERS:
+        for date in tqdm(list(daterange(start, end)), desc=f"{ticker}"):
+            fetch_and_save(client, ticker, date)
