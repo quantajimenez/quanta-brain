@@ -2,12 +2,21 @@ import os
 from polygon import RESTClient
 from datetime import datetime, timedelta
 import json
+import boto3
 
 API_KEY = os.getenv("POLYGON_API_KEY")
-
 TICKERS = ["SPY", "AAPL", "MSFT", "TSLA"]
 START_DATE = "2014-01-01"
 END_DATE = "2024-01-01"
+S3_BUCKET = "quanta-historical-marketdata"
+
+# S3 client config
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-2")
+)
 
 def daterange(start_date, end_date):
     for n in range(int((end_date - start_date).days) + 1):
@@ -29,6 +38,13 @@ def fetch_minute_bars(client, ticker, date):
     except Exception as e:
         print(f"Error fetching {ticker} for {date}: {e}")
         return []
+
+def upload_to_s3(local_path, s3_path):
+    try:
+        s3.upload_file(local_path, S3_BUCKET, s3_path)
+        print(f"Uploaded {local_path} to s3://{S3_BUCKET}/{s3_path}")
+    except Exception as e:
+        print(f"Error uploading {local_path} to S3: {e}")
 
 def main():
     client = RESTClient(API_KEY)
@@ -56,6 +72,10 @@ def main():
                     print(f"{ticker} {date_str} First 3 lines of file:\n{''.join(lines[:3])}")
             except Exception as e:
                 print(f"Error reading {out_path} for logs: {e}")
+
+            # S3 upload block
+            s3_key = f"polygon/{ticker}/{date_str}.json"
+            upload_to_s3(out_path, s3_key)
 
 if __name__ == "__main__":
     main()
