@@ -1,31 +1,34 @@
+import os
 import requests
 import json
-import os
+from datetime import datetime, timedelta
 
-API_KEY = "zxrVbIvTfgf8YXteVAS1NajfZwPrWRrs"  # Update in Render as needed
-
-# Minimal test tickers and dates (scale up later)
-TICKERS = ["NVDA", "AAPL"]
-DATES = ["2024-05-20"]
-
+API_KEY = os.getenv("POLYGON_API_KEY")
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "polygon")
-os.makedirs(DATA_DIR, exist_ok=True)
+TICKERS = ["NVDA", "TSLA", "AAPL", "SPY"]
+DATES = [
+    "2024-05-20",
+    "2024-05-21",
+    "2024-05-22"
+]
 
-for ticker in TICKERS:
-    for date in DATES:
-        url = (
-            f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/minute/"
-            f"{date}/{date}?adjusted=true&sort=asc&apiKey={API_KEY}"
-        )
-        print(f"Requesting: {url}")
-        resp = requests.get(url)
-        if resp.status_code == 200:
-            data = resp.json()
-            bars = data.get("results", [])
-            print(f"Fetched {len(bars)} bars for {ticker} on {date}")
-            out_path = os.path.join(DATA_DIR, f"{ticker}_{date}.json")
-            with open(out_path, "w") as f:
-                json.dump(bars, f)
-            print(f"Saved to {out_path}")
-        else:
-            print(f"Failed to fetch {ticker} on {date}: {resp.status_code} - {resp.text}")
+def fetch_and_save(ticker, date):
+    url = (
+        f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/minute/{date}/{date}"
+        f"?adjusted=true&sort=asc&apiKey={API_KEY}"
+    )
+    resp = requests.get(url)
+    if resp.status_code == 200:
+        bars = resp.json().get("results", [])
+        fname = f"{ticker}_{date}.json"
+        fpath = os.path.join(DATA_DIR, fname)
+        with open(fpath, "w") as f:
+            json.dump(bars, f)
+        print(f"Saved {len(bars)} bars for {ticker} on {date} to {fname}")
+    else:
+        print(f"Failed to fetch {ticker} for {date}: {resp.status_code}")
+
+if __name__ == "__main__":
+    for ticker in TICKERS:
+        for date in DATES:
+            fetch_and_save(ticker, date)
