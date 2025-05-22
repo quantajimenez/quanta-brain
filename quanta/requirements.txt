@@ -15,3 +15,5 @@ fastapi
 uvicorn
 twilio
 telegram
+requests
+polygon-api-client
