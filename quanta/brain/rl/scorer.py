@@ -8,4 +8,3 @@ def score_model(model, vectorstore):
     print("[ML SCORE] Scoring model...")
     score = 1.0  # Placeholder
     return score
-
