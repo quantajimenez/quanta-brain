@@ -21,3 +21,4 @@ psutil
 redis
 requests
 polygon-api-client
+scikit-learn
