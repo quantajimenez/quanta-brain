@@ -1,29 +1,36 @@
 # quanta/realtime/main.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 import threading
 import uvicorn
 
-# Import all routers/apps you want to expose under the unified orchestrator
+# Import all sub-API FastAPI apps
 from quanta.mesh.api import app as mesh_api
 from quanta.ingest.webhook_listener import app as ingest_api
 from quanta.mesh.health_dashboard import app as health_api
 
-# (Add other routers here as your platform grows, e.g., insights, brain, etc.)
+# ✅ Import your APIRouter for YouTube
+from quanta.brain.youtube_router import router as youtube_router
 
+# Unified orchestrator FastAPI app
 orchestrator_app = FastAPI(title="Quanta Unified Orchestrator")
 
-# Mount all relevant sub-APIs under their own prefixes
+# Mount full FastAPI sub-apps under specific prefixes
 orchestrator_app.mount("/mesh", mesh_api)
 orchestrator_app.mount("/ingest", ingest_api)
 orchestrator_app.mount("/health", health_api)
 
-# Health check root endpoint
+# ✅ Register lightweight routers directly (like YouTube)
+api_router = APIRouter()
+api_router.include_router(youtube_router, prefix="/youtube")
+orchestrator_app.include_router(api_router)
+
+# Root endpoint for ping/healthcheck
 @orchestrator_app.get("/")
 def root():
     return {"status": "Quanta Unified Orchestrator is live"}
 
-# Background service example: start resilience poller thread
+# Background service: start resilience poller
 from quanta.ingest.resilience import start_poller
 
 def start_background_poller():
