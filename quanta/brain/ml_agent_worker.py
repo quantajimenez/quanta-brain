@@ -2,31 +2,21 @@ import os
 import redis
 import time
 
-def get_redis_connection():
-    redis_url = os.getenv("REDIS_URL")
-    if redis_url:
-        return redis.from_url(redis_url, ssl=True, decode_responses=True)
-    else:
-        return redis.Redis(
-            host=os.getenv("REDIS_HOST"),
-            port=int(os.getenv("REDIS_PORT")),
-            username=os.getenv("REDIS_USERNAME"),
-            password=os.getenv("REDIS_PASSWORD"),
-            ssl=True,
-            decode_responses=True,
-        )
-
 def worker_loop():
-    r = get_redis_connection()
+    REDIS_URL = os.getenv("REDIS_URL")
+    r = redis.from_url(REDIS_URL)
     print("ML Agent Worker is running and connected to Redis...")
 
     while True:
         job = r.brpop("quanta_jobs", timeout=10)
         if job:
-            queue, data = job
-            print(f"Processing job: {data}")
-            # Placeholder: Insert ML logic here
-            time.sleep(2)
+            _, job_data = job
+            print(f"[ML AGENT] Got job: {job_data}")
+            # Dummy ML step (replace with real ML logic)
+            result = f"Processed: {job_data.decode()}"
+            r.lpush("quanta_results", result)
+        else:
+            print("[ML AGENT] No job found, waiting...")
 
 if __name__ == "__main__":
     worker_loop()
