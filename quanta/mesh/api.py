@@ -1,4 +1,4 @@
-# quanta/mesh/api.py
+# quanta/mesh/api.py 
 
 from fastapi import FastAPI, Query
 from quanta.mesh.orchestrator import AgentMeshOrchestrator
@@ -17,7 +17,7 @@ def get_agents():
         "status": orchestrator.status
     }
 
-@app.get("/mesh/health")
+@app.get("/health")
 def get_mesh_health():
     return {
         "mesh_status": orchestrator.status,
