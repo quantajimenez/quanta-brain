@@ -7,10 +7,9 @@ from googleapiclient.discovery import build
 from googleapiclient.discovery_cache.base import Cache
 from googleapiclient.errors import HttpError
 
-# Load key from environment (must be set manually or by Render)
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
-# Disable local API caching (avoids file permission issues on Windows)
+# Disable local caching for Windows safety
 class NoCache(Cache):
     def get(self, url): return None
     def set(self, url, content): pass
@@ -25,9 +24,6 @@ def extract_video_id(url: str) -> str:
     return match.group(1) if match else None
 
 def fetch_video_metadata(video_url: str) -> dict:
-    """
-    Retrieves title, channel, and other metadata from a single video URL.
-    """
     video_id = extract_video_id(video_url)
     if not video_id:
         raise ValueError("❌ Invalid YouTube URL format.")
@@ -35,8 +31,10 @@ def fetch_video_metadata(video_url: str) -> dict:
     youtube = get_youtube_service()
     try:
         response = youtube.videos().list(part="snippet", id=video_id).execute()
-        if not response["items"]:
-            raise Exception(f"❌ No video found for ID: {video_id}")
+        print("🧪 API RESPONSE RAW:", response)  # DEBUG
+
+        if not response or "items" not in response or not response["items"]:
+            raise Exception(f"❌ YouTube API returned empty or malformed response for ID: {video_id}")
 
         data = response["items"][0]["snippet"]
         return {
@@ -50,9 +48,6 @@ def fetch_video_metadata(video_url: str) -> dict:
         raise Exception(f"❌ YouTube API error: {e}")
 
 def crawl_playlist(playlist_url: str) -> List[str]:
-    """
-    Crawls all video URLs from a YouTube playlist.
-    """
     match = re.search(r"list=([a-zA-Z0-9_-]+)", playlist_url)
     playlist_id = match.group(1) if match else None
     if not playlist_id:
@@ -70,7 +65,7 @@ def crawl_playlist(playlist_url: str) -> List[str]:
 
         while request:
             response = request.execute()
-            for item in response["items"]:
+            for item in response.get("items", []):
                 video_id = item["contentDetails"]["videoId"]
                 video_urls.append(f"https://www.youtube.com/watch?v={video_id}")
             request = youtube.playlistItems().list_next(request, response)
@@ -80,13 +75,9 @@ def crawl_playlist(playlist_url: str) -> List[str]:
         raise Exception(f"❌ Playlist crawl failed: {e}")
 
 def crawl_channel_uploads(channel_id: str, max_videos: int = 50) -> List[str]:
-    """
-    Crawls the 'uploads' playlist of a YouTube channel to get recent video URLs.
-    """
     youtube = get_youtube_service()
 
     try:
-        # Get the Uploads playlist ID from the channel's content details
         channel = youtube.channels().list(part="contentDetails", id=channel_id).execute()
         uploads_playlist_id = channel["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
         
@@ -99,7 +90,7 @@ def crawl_channel_uploads(channel_id: str, max_videos: int = 50) -> List[str]:
 
         while request and len(video_urls) < max_videos:
             response = request.execute()
-            for item in response["items"]:
+            for item in response.get("items", []):
                 video_id = item["contentDetails"]["videoId"]
                 video_urls.append(f"https://www.youtube.com/watch?v={video_id}")
             request = youtube.playlistItems().list_next(request, response)
