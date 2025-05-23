@@ -1,19 +1,31 @@
 # quanta/mesh/config_hot_reload.py
 
-import json
 import os
+import json
+import boto3
+import redis
 
 class MeshConfigLoader:
-    def __init__(self, config_path=None):
-        # Default config path inside quanta/mesh/agent_config.json
-        self.config_path = config_path or os.path.join(os.path.dirname(__file__), "agent_config.json")
+    def __init__(self, config_key=None):
+        self.s3_bucket = os.getenv("QUANTA_CONFIG_S3_BUCKET", "quanta-mesh-config")
+        self.s3_key = config_key or os.getenv("QUANTA_CONFIG_S3_KEY", "agent_config.json")
+        self.s3 = boto3.client("s3")
+        self.redis_url = os.getenv("QUANTA_CONFIG_REDIS_URL", "redis://localhost:6379")
+        self.redis = redis.Redis.from_url(self.redis_url)
 
     def load_config(self):
-        if not os.path.exists(self.config_path):
+        # Prefer Redis, fall back to S3
+        config = self.redis.get("mesh_config")
+        if config:
+            return json.loads(config)
+        try:
+            obj = self.s3.get_object(Bucket=self.s3_bucket, Key=self.s3_key)
+            config = json.loads(obj["Body"].read())
+            self.redis.set("mesh_config", json.dumps(config))
+            return config
+        except Exception:
             return {}
-        with open(self.config_path, "r") as f:
-            return json.load(f)
-    
+
     def save_config(self, config_dict):
-        with open(self.config_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
+        self.redis.set("mesh_config", json.dumps(config_dict))
+        self.s3.put_object(Bucket=self.s3_bucket, Key=self.s3_key, Body=json.dumps(config_dict, indent=2))
