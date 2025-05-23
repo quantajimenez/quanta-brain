@@ -2,26 +2,30 @@ import os
 import redis
 import time
 
-def connect_redis():
-    return redis.Redis(
-        host=os.getenv("REDIS_HOST"),
-        port=int(os.getenv("REDIS_PORT")),
-        username=os.getenv("REDIS_USERNAME"),
-        password=os.getenv("REDIS_PASSWORD"),
-        ssl=True,
-        decode_responses=True
-    )
+def get_redis_connection():
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        return redis.from_url(redis_url, ssl=True, decode_responses=True)
+    else:
+        return redis.Redis(
+            host=os.getenv("REDIS_HOST"),
+            port=int(os.getenv("REDIS_PORT")),
+            username=os.getenv("REDIS_USERNAME"),
+            password=os.getenv("REDIS_PASSWORD"),
+            ssl=True,
+            decode_responses=True,
+        )
 
-def produce_jobs():
-    r = connect_redis()
+def main():
+    r = get_redis_connection()
     print("Job Producer is running and connected to Redis...")
-    job_id = 1
-    while True:
-        job_data = f"Job-{job_id} | payload: test-data"
-        r.lpush("quanta_jobs", job_data)
-        print(f"[Producer] Pushed job: {job_data}")
-        job_id += 1
-        time.sleep(5)  # Produce a new job every 5 seconds (adjust as needed)
+
+    # Dummy: Add jobs for 10 agents
+    for i in range(10):
+        job = {"agent_id": i, "task": "run_ml"}
+        r.lpush("quanta_jobs", str(job))
+        print(f"Pushed job for agent {i}")
+        time.sleep(1)
 
 if __name__ == "__main__":
-    produce_jobs()
+    main()
