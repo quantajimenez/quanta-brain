@@ -1,21 +1,32 @@
+# quanta/ingest/polygon_data_loader.py
+
 import os
 import json
+import boto3
+import logging
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "polygon")
+S3_BUCKET = os.getenv("QUANTA_HIST_S3_BUCKET", "quanta-historical-marketdata")
+S3_PREFIX = "polygon"
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("polygon_data_loader")
+
+s3 = boto3.client("s3")
 
 def load_bars(ticker, date):
-    fname = f"{ticker}_{date}.json"
-    fpath = os.path.join(DATA_DIR, fname)
-    print(f"Looking for file: {fpath}")
-    if not os.path.exists(fpath):
-        print(f"File not found: {fpath}")
+    key = f"{S3_PREFIX}/{ticker}_{date}.json"
+    logger.info(f"Looking for file: s3://{S3_BUCKET}/{key}")
+    try:
+        obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+        bars = json.loads(obj['Body'].read().decode())
+        logger.info(f"Loaded {len(bars)} bars for {ticker} on {date}")
+        return bars
+    except Exception as e:
+        logger.warning(f"File not found or error: {e}")
         return []
-    with open(fpath, "r") as f:
-        return json.load(f)
 
 if __name__ == "__main__":
     ticker = "NVDA"
     date = "2024-05-20"
     bars = load_bars(ticker, date)
-    print(f"Loaded {len(bars)} bars for {ticker}")
-    print(f"First 3 bars: {bars[:3]}")
+    logger.info(f"First 3 bars: {bars[:3]}")
