@@ -11,14 +11,19 @@ if not logger.hasHandlers():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-# ✅ Add new agent module here
+# ✅ All agents managed by the orchestrator
 AGENTS = [
     "quanta.ingest.polygon_s3_ingest",
     "quanta.diagnostics.monitoring_agent",
-    "quanta.ingest.youtube_pattern_agent"  # ✅ NEW: YouTube Pattern Agent
+    "quanta.ingest.youtube_pattern_agent"  # ✅ Added YouTubePatternAgent here
 ]
 
-HEALTH_URL = "http://localhost:8181/health"  # Change if deploying on different host/port
+# ✅ Identify batch-mode agents that are expected to exit normally
+AGENTS_BATCH = [
+    "quanta.ingest.youtube_pattern_agent"
+]
+
+HEALTH_URL = "http://localhost:8181/health"  # Health check for diagnostics agent
 
 def start_agent(module):
     logger.info(f"Starting agent: {module}")
@@ -32,7 +37,6 @@ def start_agent(module):
 
 def report_orchestrator_health():
     try:
-        # This would POST to your agent_status_server if you expand with a POST endpoint
         requests.get(HEALTH_URL, timeout=2)
         logger.info("Health check: orchestrator is alive.")
     except Exception as e:
@@ -43,21 +47,27 @@ def main():
     processes = []
     for agent in AGENTS:
         proc = start_agent(agent)
-        if proc:
-            processes.append(proc)
-    # Monitor processes
+        processes.append(proc)
+
     try:
         while True:
             for i, proc in enumerate(processes):
-                if proc.poll() is not None:  # Process died
-                    logger.warning(f"Agent {AGENTS[i]} terminated unexpectedly. Restarting...")
-                    processes[i] = start_agent(AGENTS[i])
+                if proc.poll() is not None:  # Agent exited
+                    agent_name = AGENTS[i]
+                    if agent_name in AGENTS_BATCH:
+                        logger.info(f"✅ Batch agent {agent_name} completed successfully.")
+                        processes[i] = None  # Don't restart
+                    else:
+                        logger.warning(f"❌ Agent {agent_name} terminated unexpectedly. Restarting...")
+                        processes[i] = start_agent(agent_name)
+
             report_orchestrator_health()
-            time.sleep(60)  # Monitor every 1 minute
+            time.sleep(60)
     except KeyboardInterrupt:
         logger.info("Shutting down all agents...")
         for proc in processes:
-            proc.terminate()
+            if proc:
+                proc.terminate()
 
 if __name__ == "__main__":
     main()
