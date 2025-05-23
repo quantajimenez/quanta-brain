@@ -3,6 +3,7 @@ import redis
 import time
 import uuid
 import logging
+import json  # <--- ADD THIS
 
 # Configure robust logging with timestamp and log level
 logging.basicConfig(
@@ -23,7 +24,8 @@ def main():
     while True:
         job = {"id": str(uuid.uuid4()), "task": "analyze_data"}
         try:
-            r.lpush("quanta_jobs", str(job))
+            # IMPORTANT: Always use json.dumps to serialize the job dict
+            r.lpush("quanta_jobs", json.dumps(job))  # <--- CHANGE HERE
             queue_len = r.llen("quanta_jobs")
             logging.info(f"[PRODUCER] Pushed job: {job} | Queue length: {queue_len}")
         except Exception as e:
