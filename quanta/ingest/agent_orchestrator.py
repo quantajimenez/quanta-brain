@@ -15,15 +15,15 @@ if not logger.hasHandlers():
 AGENTS = [
     "quanta.ingest.polygon_s3_ingest",
     "quanta.diagnostics.monitoring_agent",
-    "quanta.ingest.youtube_pattern_agent"  # ✅ Batch-style agent
+    "quanta.ingest.youtube_pattern_agent"  # ✅ Your batch-mode agent
 ]
 
-# ✅ Agents that are allowed to exit cleanly
+# ✅ Agents that are expected to exit cleanly
 AGENTS_BATCH = [
     "quanta.ingest.youtube_pattern_agent"
 ]
 
-HEALTH_URL = "http://localhost:8181/health"  # Update if needed
+HEALTH_URL = "http://localhost:8181/health"  # Health check endpoint
 
 def start_agent(module):
     logger.info(f"Starting agent: {module}")
@@ -51,15 +51,14 @@ def main():
 
     try:
         while True:
-            for i, proc in enumerate(processes):
+            for i, (agent_name, proc) in enumerate(zip(AGENTS, processes)):
                 if proc is None:
-                    continue  # ✅ Skip completed batch agents
+                    continue
 
                 if proc.poll() is not None:  # Agent exited
-                    agent_name = AGENTS[i]
                     if agent_name in AGENTS_BATCH:
                         logger.info(f"✅ Batch agent {agent_name} completed successfully.")
-                        processes[i] = None  # Do not restart
+                        processes[i] = None  # Mark as intentionally done
                     else:
                         logger.warning(f"❌ Agent {agent_name} terminated unexpectedly. Restarting...")
                         processes[i] = start_agent(agent_name)
