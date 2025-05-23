@@ -11,10 +11,11 @@ if not logger.hasHandlers():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
+# ✅ Add new agent module here
 AGENTS = [
     "quanta.ingest.polygon_s3_ingest",
-    "quanta.diagnostics.monitoring_agent"
-    # Add more agents here as you scale (e.g., "quanta.analyze.stock_analyzer")
+    "quanta.diagnostics.monitoring_agent",
+    "quanta.ingest.youtube_pattern_agent"  # ✅ NEW: YouTube Pattern Agent
 ]
 
 HEALTH_URL = "http://localhost:8181/health"  # Change if deploying on different host/port
