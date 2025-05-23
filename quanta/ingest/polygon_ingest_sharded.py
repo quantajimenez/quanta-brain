@@ -1,11 +1,21 @@
+# quanta/ingest/polygon_ingest_sharded.py
+
 import os
 import requests
 import json
+import boto3
+import logging
 
 API_KEY = os.getenv("POLYGON_API_KEY")
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "polygon")
+S3_BUCKET = os.getenv("QUANTA_HIST_S3_BUCKET", "quanta-historical-marketdata")
+S3_PREFIX = "polygon"
 TICKERS = ["NVDA", "AAPL"]
 DATES = ["2024-05-20", "2024-05-21", "2024-05-22"]
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("polygon_ingest_sharded")
+
+s3 = boto3.client("s3")
 
 def fetch_and_save(ticker, date):
     url = (
@@ -15,16 +25,14 @@ def fetch_and_save(ticker, date):
     resp = requests.get(url)
     if resp.status_code == 200:
         bars = resp.json().get("results", [])
-        fname = f"{ticker}_{date}.json"
-        fpath = os.path.join(DATA_DIR, fname)
-        with open(fpath, "w") as f:
-            json.dump(bars, f)
-        print(f"Agent 0 saved {len(bars)} bars to {fname}")
+        key = f"{S3_PREFIX}/{ticker}_{date}.json"
+        s3.put_object(Bucket=S3_BUCKET, Key=key, Body=json.dumps(bars))
+        logger.info(f"Saved {len(bars)} bars to s3://{S3_BUCKET}/{key}")
     else:
-        print(f"Agent 0 failed to fetch {ticker} for {date}: {resp.status_code}")
+        logger.warning(f"Failed to fetch {ticker} for {date}: {resp.status_code}")
 
 if __name__ == "__main__":
     for ticker in TICKERS:
         for date in DATES:
-            print(f"Agent 0 fetching {ticker} for {date} ...")
+            logger.info(f"Fetching {ticker} for {date} ...")
             fetch_and_save(ticker, date)
