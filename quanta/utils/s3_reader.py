@@ -1,44 +1,32 @@
-# quanta/utils/s3_reader.py
-
-import boto3
 import os
+import boto3
+from botocore.exceptions import ClientError
 
 def list_youtube_signals():
     """
-    List all YouTube signal files in the S3 bucket under the given prefix.
-    Defaults to 'quanta-insights' bucket and 'youtube' prefix.
+    List objects in the configured S3 bucket with the prefix 'youtube/'.
+    Assumes AWS credentials are set in environment variables.
     """
-    bucket = os.getenv("S3_BUCKET_NAME", "quanta-insights")
+    access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    region = os.getenv("AWS_REGION", "us-east-1")
+    bucket = os.getenv("S3_BUCKET_NAME")
     prefix = os.getenv("S3_PREFIX", "youtube")
 
-    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
-    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
-    aws_region = os.getenv("AWS_REGION", "us-east-1")
+    if not all([access_key, secret_key, bucket]):
+        raise Exception("Missing one or more required S3 environment variables.")
 
-    if not all([aws_access_key, aws_secret_key]):
-        print("❌ Missing AWS credentials. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.")
-        return []
-
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=aws_access_key,
-        aws_secret_access_key=aws_secret_key,
-        region_name=aws_region
+    session = boto3.session.Session()
+    s3 = session.client(
+        "s3",
+        region_name=region,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
     )
 
     try:
-        print(f"🧠 Loading YouTube signals from S3...\n📦 Bucket: {bucket} | Prefix: {prefix}/")
         response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
-
-        if 'Contents' not in response:
-            print("⚠️ No files found in the specified prefix.")
-            return []
-
-        keys = [obj['Key'] for obj in response['Contents']]
-        print(f"✅ Found {len(keys)} objects.")
+        keys = [obj["Key"] for obj in response.get("Contents", [])]
         return keys
-
-    except Exception as e:
-        print(f"❌ S3 list_objects_v2 failed: {e}")
-        return []
-
+    except ClientError as e:
+        raise Exception(f"S3 list_objects_v2 failed: {e}")
