@@ -1,6 +1,8 @@
 # quanta/ingest/youtube_pattern_agent.py
 
 import os
+import uuid
+from datetime import datetime
 from quanta.utils.logger import setup_logger
 from quanta.crews.langchain_boot import boot_langchain_memory
 from quanta.ingest.youtube_scraper import (
@@ -9,21 +11,22 @@ from quanta.ingest.youtube_scraper import (
     crawl_channel_uploads
 )
 from quanta.ingest.youtube_transcript_utils import extract_transcript
+from quanta.utils.s3_uploader import upload_signal_to_s3
 from langchain_core.documents import Document
 
 logger = setup_logger("YouTubePatternAgent")
 
-# Define technical patterns to detect in transcripts
+# Technical trading patterns to detect
 PATTERN_KEYWORDS = [
     "double top", "double bottom", "head and shoulders", "inverse head and shoulders",
     "cup and handle", "breakout", "support", "resistance",
     "RSI", "MACD", "moving average", "bullish", "bearish",
-    "trend line", "channel", "ascending", "descending"
+    "trend line", "channel", "ascending triangle", "descending triangle"
 ]
 
 class YouTubePatternAgent:
     def __init__(self):
-        logger.info("🧠 Initializing LangChain memory...")
+        logger.info("🧠 Booting LangChain memory...")
         self.llm, self.embeddings, self.vectorstore = boot_langchain_memory()
 
     def ingest_video(self, video_url: str):
@@ -66,7 +69,20 @@ class YouTubePatternAgent:
                 }
             )
             self.vectorstore.add_documents([doc])
-            logger.info(f"🧠 Stored in memory: {pattern} from {meta['video_id']}")
+            logger.info(f"🧠 Stored in FAISS: {pattern} from {meta['video_id']}")
+
+            # ✅ Also upload to S3 as signal
+            signal = {
+                "id": str(uuid.uuid4()),
+                "source": "youtube",
+                "pattern": pattern,
+                "title": meta["title"],
+                "channel": meta["channel"],
+                "video_id": meta["video_id"],
+                "source_url": f"https://www.youtube.com/watch?v={meta['video_id']}",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+            upload_signal_to_s3(signal)
 
     def ingest_playlist(self, playlist_url: str, max_videos: int = 20):
         logger.info(f"📺 Ingesting playlist: {playlist_url}")
@@ -86,16 +102,13 @@ class YouTubePatternAgent:
         except Exception as e:
             logger.error(f"❌ Failed channel ingest: {e}")
 
+# ✅ Batch worker entry point — use for cron jobs or Render execution
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
-
-    # ✅ Test with single video
-    # agent.ingest_video("https://www.youtube.com/watch?v=PmhuPbY8ZHo")
-
-    # ✅ Test with playlist
+    
+    # 🔁 Choose one of the ingestion modes:
     agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
 
-    # ✅ Test with channel ID
     # agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
 
 
