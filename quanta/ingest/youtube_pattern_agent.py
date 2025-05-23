@@ -90,10 +90,10 @@ if __name__ == "__main__":
     agent = YouTubePatternAgent()
 
     # ✅ Test with single video
-    agent.ingest_video("https://www.youtube.com/watch?v=PmhuPbY8ZHo")
+    # agent.ingest_video("https://www.youtube.com/watch?v=PmhuPbY8ZHo")
 
     # ✅ Test with playlist
-    # agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
+    agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
 
     # ✅ Test with channel ID
     # agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
