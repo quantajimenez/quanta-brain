@@ -14,7 +14,8 @@ logger = logging.getLogger("polygon_data_loader")
 s3 = boto3.client("s3")
 
 def load_bars(ticker, date):
-    key = f"{S3_PREFIX}/{ticker}_{date}.json"
+    # Fixed: Build key using / not _
+    key = f"{S3_PREFIX}/{ticker}/{date}.json"
     logger.info(f"Looking for file: s3://{S3_BUCKET}/{key}")
     try:
         obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
