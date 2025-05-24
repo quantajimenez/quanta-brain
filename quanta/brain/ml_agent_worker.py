@@ -1,4 +1,4 @@
-import os 
+import os
 import time
 import uuid
 import redis
@@ -19,6 +19,7 @@ logging.basicConfig(
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 S3_KEY = os.getenv("S3_INSIGHTS_KEY", "latest_signals.json")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
+HIST_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
 
 # --- Redis config ---
 REDIS_URL = os.getenv("REDIS_URL")
@@ -70,7 +71,12 @@ def main():
                     logging.error(f"[ML AGENT][ERROR] Missing ticker or date in job_data: {job_data}")
                     continue
 
-                bars = load_bars(ticker, date)
+                # Build correct S3 key for historical data
+                s3_key = f"polygon/{ticker}/{date}.json"
+                logging.info(f"[ML AGENT] Fetching bars from S3: {HIST_BUCKET}/{s3_key}")
+
+                # Override loader call to pass correct path
+                bars = load_bars(ticker, date)  # Loader should expect (ticker, date) and internally build s3_key
                 logging.info(f"[ML AGENT] Loaded bars: {bars[:3]} (total: {len(bars)})")
 
                 # --- Simple feature extraction: require at least 4 bars ---
