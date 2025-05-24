@@ -1,4 +1,4 @@
-import os
+import os 
 import time
 import uuid
 import redis
@@ -40,11 +40,7 @@ def upload_insight_to_s3(data):
         logging.error(f"[ML AGENT][ERROR] Failed to upload insight to S3: {e}")
 
 def ml_predict(features):
-    """
-    Example ML: Random Forest Classifier on synthetic data
-    In production: Load real historical features from S3 or job_payload
-    """
-    # For now, we generate a dummy classifier; you will plug in real models later
+    # Example ML: Random Forest Classifier on synthetic data
     X, y = make_classification(n_samples=100, n_features=4, n_classes=2, random_state=42)
     clf = RandomForestClassifier()
     clf.fit(X, y)
@@ -60,12 +56,20 @@ def main():
         job = r.brpop("quanta_jobs", timeout=5)
         if job:
             try:
+                # Print out the raw job
+                logging.info(f"[ML AGENT][DEBUG] Raw job from Redis: {job}")
                 job_data = json.loads(job[1])
-                logging.info(f"[ML AGENT] Got job: {job_data}")
+                logging.info(f"[ML AGENT][DEBUG] Decoded job_data: {job_data}")
 
                 # --- LOAD HISTORICAL DATA FROM S3 ---
                 ticker = job_data.get("ticker")
                 date = job_data.get("date")
+
+                # Add extra debug info
+                if ticker is None or date is None:
+                    logging.error(f"[ML AGENT][ERROR] Missing ticker or date in job_data: {job_data}")
+                    continue
+
                 bars = load_bars(ticker, date)
                 logging.info(f"[ML AGENT] Loaded bars: {bars[:3]} (total: {len(bars)})")
 
@@ -86,7 +90,7 @@ def main():
                 prediction, proba, used_features = ml_predict(features)
 
                 result_dict = {
-                    "id": job_data["id"],
+                    "id": job_data.get("id"),
                     "prediction": prediction,
                     "probabilities": proba,
                     "features": used_features,
@@ -95,7 +99,7 @@ def main():
                 }
 
                 upload_insight_to_s3(result_dict)
-                logging.info(f"[ML AGENT] Processed job: {job_data['id']}")
+                logging.info(f"[ML AGENT] Processed job: {job_data.get('id')}")
 
             except Exception as e:
                 logging.error(f"[ML AGENT][ERROR] Failed to process job: {e}")
