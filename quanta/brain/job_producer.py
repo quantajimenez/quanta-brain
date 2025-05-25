@@ -1,19 +1,28 @@
 import os
 import redis
-import time
 import uuid
-import logging
 import json
+import logging
 import boto3
 
+# --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# S3 Setup
+# --- S3 Config ---
 S3_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
+REDIS_URL = os.environ.get("REDIS_URL")
+
+# Initialize Redis
+def get_redis_connection():
+    if not REDIS_URL:
+        raise Exception("REDIS_URL not found in environment variables.")
+    return redis.from_url(REDIS_URL)
+
+# Initialize S3
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -21,47 +30,42 @@ s3 = boto3.client(
     region_name=AWS_REGION,
 )
 
-def get_redis_connection():
-    redis_url = os.environ.get("REDIS_URL")
-    if redis_url:
-        return redis.from_url(redis_url)
-    else:
-        raise Exception("REDIS_URL not found in environment variables.")
-
-def list_all_hist_files():
-    """Lists all available ticker/date .json files under polygon/<TICKER>/"""
+def list_all_polygon_keys(bucket):
+    """List all ticker/date keys under polygon/ in S3 bucket"""
     paginator = s3.get_paginator('list_objects_v2')
-    result = []
-    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix="polygon/"):
+    tickers = set()
+    jobs = []
+    for page in paginator.paginate(Bucket=bucket, Prefix="polygon/"):
         for obj in page.get('Contents', []):
             key = obj['Key']
-            # Expecting keys like polygon/SPY/2014-01-03.json
-            if key.endswith('.json'):
-                parts = key.split('/')
-                if len(parts) == 3:
-                    ticker = parts[1]
-                    date = parts[2].replace('.json','')
-                    result.append((ticker, date, key))
-    return result
+            # Expected: polygon/TICKER/DATE.json
+            parts = key.split('/')
+            if len(parts) == 3 and parts[2].endswith('.json'):
+                ticker = parts[1]
+                date = parts[2].replace('.json','')
+                jobs.append((ticker, date))
+                tickers.add(ticker)
+    return jobs
 
 def main():
     r = get_redis_connection()
-    jobs = list_all_hist_files()
-    logging.info(f"[PRODUCER] Found {len(jobs)} jobs to enqueue.")
-    for ticker, date, key in jobs:
+    jobs = list_all_polygon_keys(S3_BUCKET)
+    logging.info(f"Found {len(jobs)} (ticker, date) combinations in S3.")
+
+    pushed = 0
+    for ticker, date in jobs:
         job = {
             "id": str(uuid.uuid4()),
             "ticker": ticker,
             "date": date,
             "task": "analyze_data"
         }
-        try:
-            r.lpush("quanta_jobs", json.dumps(job))
-            logging.info(f"[PRODUCER] Enqueued job: {job}")
-        except Exception as e:
-            logging.error(f"[PRODUCER] Failed to enqueue job for {ticker} {date}: {e}")
-        # Optionally throttle to avoid overloading downstream systems:
-        time.sleep(0.1)
+        r.lpush("quanta_jobs", json.dumps(job))
+        pushed += 1
+        if pushed % 100 == 0:
+            logging.info(f"Pushed {pushed} jobs so far...")
+
+    logging.info(f"FINISHED: Pushed total {pushed} jobs to Redis.")
 
 if __name__ == "__main__":
     main()
