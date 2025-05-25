@@ -3,6 +3,7 @@ import boto3
 import json
 import time
 import logging
+import requests
 
 # --- Logging Setup ---
 logging.basicConfig(
@@ -14,6 +15,7 @@ logging.basicConfig(
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 INSIGHTS_PREFIX = "insights/"
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
+BRAIN_API_URL = os.getenv("BRAIN_API_URL", "https://quanta-realtime.onrender.com/ingest/insight")  # Update to your real endpoint
 
 s3 = boto3.client(
     "s3",
@@ -23,7 +25,6 @@ s3 = boto3.client(
 )
 
 def list_all_insight_keys():
-    """List all JSON insight keys in insights/"""
     keys = []
     paginator = s3.get_paginator('list_objects_v2')
     for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=INSIGHTS_PREFIX):
@@ -32,28 +33,29 @@ def list_all_insight_keys():
                 keys.append(obj['Key'])
     return keys
 
-def load_all_insights():
-    """Load all insight objects from S3 into a list"""
-    all_data = []
+def post_to_brain(insight):
+    try:
+        resp = requests.post(BRAIN_API_URL, json=insight)
+        if resp.status_code == 200:
+            logging.info(f"[BRAIN LOADER] Posted insight {insight.get('id')} to brain.")
+        else:
+            logging.warning(f"[BRAIN LOADER] Failed to POST insight {insight.get('id')} | Status {resp.status_code} | {resp.text}")
+    except Exception as e:
+        logging.error(f"[BRAIN LOADER] Error posting to brain: {e}")
+
+def load_and_post_all_insights():
     keys = list_all_insight_keys()
     logging.info(f"[BRAIN LOADER] Found {len(keys)} insight files in S3.")
     for key in keys:
         try:
             obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
             data = json.loads(obj['Body'].read().decode())
-            all_data.append(data)
+            post_to_brain(data)
         except Exception as e:
-            logging.error(f"[BRAIN LOADER][ERROR] Failed to load {key}: {e}")
-    # Print sample for validation
-    if all_data:
-        logging.info(f"[BRAIN LOADER] Loaded sample insights:\n{json.dumps(all_data[:3], indent=2)}")
-    else:
-        logging.info(f"[BRAIN LOADER] No insights found.")
-    # Here you can push data to Quanta Brain, a DB, vector store, etc.
-    return all_data
+            logging.error(f"[BRAIN LOADER][ERROR] Failed to load/post {key}: {e}")
 
 if __name__ == "__main__":
     logging.info("[BRAIN LOADER] Starting loader loop.")
     while True:
-        load_all_insights()
-        time.sleep(60)  # Runs every 60s, adjust as needed
+        load_and_post_all_insights()
+        time.sleep(300)  # Repeat every 5 min
