@@ -1,5 +1,3 @@
-# quanta/brain/insight_loader.py
-
 import os
 import boto3
 import json
@@ -14,7 +12,7 @@ logging.basicConfig(
 
 # --- S3 Config ---
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
-S3_KEY = os.getenv("S3_INSIGHTS_KEY", "latest_signals.json")
+INSIGHTS_PREFIX = "insights/"
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 
 s3 = boto3.client(
@@ -24,18 +22,34 @@ s3 = boto3.client(
     region_name=AWS_REGION,
 )
 
-def load_latest_insight():
-    try:
-        obj = s3.get_object(Bucket=S3_BUCKET, Key=S3_KEY)
-        data = json.loads(obj['Body'].read().decode())
-        logging.info(f"[BRAIN LOADER] Latest insight loaded from S3:\n{json.dumps(data, indent=2)}")
-        # TODO: Insert here to push to database, API, dashboard, etc.
-        return data
-    except Exception as e:
-        logging.error(f"[BRAIN LOADER][ERROR] Failed to load latest insight: {e}")
+def list_all_insight_keys():
+    """List all insight JSON keys in the insights folder"""
+    keys = []
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=INSIGHTS_PREFIX):
+        for obj in page.get('Contents', []):
+            if obj['Key'].endswith('.json'):
+                keys.append(obj['Key'])
+    return keys
+
+def load_all_insights():
+    all_data = []
+    keys = list_all_insight_keys()
+    logging.info(f"[BRAIN LOADER] Found {len(keys)} insight files in S3.")
+    for key in keys:
+        try:
+            obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
+            data = json.loads(obj['Body'].read().decode())
+            all_data.append(data)
+        except Exception as e:
+            logging.error(f"[BRAIN LOADER][ERROR] Failed to load {key}: {e}")
+    # For demo: print the first few insights
+    logging.info(f"[BRAIN LOADER] Loaded insights (sample):\n{json.dumps(all_data[:3], indent=2)}")
+    # TODO: Insert here to feed to brain module, backtest, etc.
+    return all_data
 
 if __name__ == "__main__":
     logging.info("[BRAIN LOADER] Starting loader loop.")
     while True:
-        load_latest_insight()
-        time.sleep(10)
+        load_all_insights()
+        time.sleep(60)  # Runs every 60s, adjust as needed
