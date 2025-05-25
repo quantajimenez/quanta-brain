@@ -17,7 +17,6 @@ logging.basicConfig(
 
 # --- S3 config ---
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
-S3_KEY = os.getenv("S3_INSIGHTS_KEY", "latest_signals.json")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 HIST_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
 
@@ -35,8 +34,14 @@ def upload_insight_to_s3(data):
             aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
             region_name=AWS_REGION,
         )
-        s3.put_object(Bucket=S3_BUCKET, Key=S3_KEY, Body=json.dumps(data))
-        logging.info(f"[ML AGENT] Uploaded latest insight to S3: {S3_BUCKET}/{S3_KEY}")
+        # Save individual insight with unique key (e.g., insights/SPY_2014-01-03.json)
+        ticker = data['raw_job'].get('ticker', 'UNKNOWN')
+        date = data['raw_job'].get('date', 'UNKNOWN')
+        s3_key = f"insights/{ticker}_{date}.json"
+        s3.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=json.dumps(data))
+        # (Optional) Update a latest_signals.json for convenience (can be removed if you want only per-job files)
+        s3.put_object(Bucket=S3_BUCKET, Key="latest_signals.json", Body=json.dumps(data))
+        logging.info(f"[ML AGENT] Uploaded insight to S3: {S3_BUCKET}/{s3_key}")
     except Exception as e:
         logging.error(f"[ML AGENT][ERROR] Failed to upload insight to S3: {e}")
 
