@@ -5,17 +5,15 @@ import time
 import logging
 import requests
 
-# --- Logging Setup ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# --- S3 Config ---
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 INSIGHTS_PREFIX = "insights/"
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
-BRAIN_API_URL = os.getenv("BRAIN_API_URL", "https://quanta-realtime.onrender.com/ingest/insight")  # Update to your real endpoint
+BRAIN_API_URL = os.getenv("BRAIN_API_URL", "https://quanta-realtime.onrender.com/ingest/insight")
 
 s3 = boto3.client(
     "s3",
@@ -58,4 +56,4 @@ if __name__ == "__main__":
     logging.info("[BRAIN LOADER] Starting loader loop.")
     while True:
         load_and_post_all_insights()
-        time.sleep(300)  # Repeat every 5 min
+        time.sleep(300)
