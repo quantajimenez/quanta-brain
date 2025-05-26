@@ -11,8 +11,15 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 
 # --- S3 and Redis config ---
 S3_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
+S3_PREFIX = os.getenv("S3_POLYGON_PREFIX", "polygon/")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 REDIS_URL = os.environ.get("REDIS_URL")
+REDIS_JOBS_KEY = os.getenv("REDIS_JOBS_KEY", "quanta_jobs")
+REDIS_SET_KEY = os.getenv("REDIS_SET_KEY", "quanta_jobs_submitted")
+
+# --- Check for required env ---
+if not REDIS_URL:
+    raise Exception("REDIS_URL not found in environment variables.")
 
 s3 = boto3.client(
     "s3",
@@ -22,8 +29,9 @@ s3 = boto3.client(
 )
 r = redis.from_url(REDIS_URL)
 
-def get_all_s3_keys(prefix="polygon/"):
-    """Return all S3 keys under prefix (for all tickers/dates)."""
+def get_all_s3_keys(prefix=None):
+    if prefix is None:
+        prefix = S3_PREFIX
     keys = []
     paginator = s3.get_paginator('list_objects_v2')
     for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=prefix):
@@ -32,17 +40,16 @@ def get_all_s3_keys(prefix="polygon/"):
     return keys
 
 def already_queued(job_id):
-    """Check if job_id is already in Redis SET (idempotency)."""
-    return r.sismember("quanta_jobs_submitted", job_id)
+    return r.sismember(REDIS_SET_KEY, job_id)
 
 def mark_queued(job_id):
-    r.sadd("quanta_jobs_submitted", job_id)
+    r.sadd(REDIS_SET_KEY, job_id)
 
 def main():
     logging.info("Job Producer is running and connected to Redis...")
     while True:
         keys = get_all_s3_keys()
-        logging.info(f"Found {len(keys)} files in S3 under polygon/")
+        logging.info(f"Found {len(keys)} files in S3 under {S3_PREFIX}")
         for key in keys:
             try:
                 parts = key.split("/")
@@ -61,7 +68,7 @@ def main():
                     "date": date,
                     "task": "analyze_data"
                 }
-                r.lpush("quanta_jobs", json.dumps(job))
+                r.lpush(REDIS_JOBS_KEY, json.dumps(job))
                 mark_queued(job_id)
                 logging.info(f"[PRODUCER] Enqueued job for {ticker} {date} | id={job['id']}")
             except Exception as e:
