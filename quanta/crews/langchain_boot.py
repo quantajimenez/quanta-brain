@@ -12,11 +12,8 @@ def boot_langchain_memory():
         logger.error("No OPENAI_API_KEY found.")
         raise Exception("Missing OpenAI API key.")
 
-    # Use the updated OpenAI and OpenAIEmbeddings
     llm = OpenAI(openai_api_key=openai_key, model="gpt-4-1106-preview")
     embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
-
-    # FAISS now requires at least one document to initialize
     vectorstore = FAISS.from_documents(
         [Document(page_content="init")],
         embedding=embeddings
