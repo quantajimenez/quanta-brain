@@ -1,4 +1,4 @@
-import os
+import os 
 import redis
 import time
 import uuid
@@ -6,10 +6,8 @@ import logging
 import json
 import boto3
 
-# --- Logging ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
-# --- S3 and Redis config ---
 S3_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
 S3_PREFIX = os.getenv("S3_POLYGON_PREFIX", "polygon/")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
@@ -17,7 +15,6 @@ REDIS_URL = os.environ.get("REDIS_URL")
 REDIS_JOBS_KEY = os.getenv("REDIS_JOBS_KEY", "quanta_jobs")
 REDIS_SET_KEY = os.getenv("REDIS_SET_KEY", "quanta_jobs_submitted")
 
-# --- Check for required env ---
 if not REDIS_URL:
     raise Exception("REDIS_URL not found in environment variables.")
 
@@ -61,6 +58,7 @@ def main():
                 date = file.replace('.json','')
                 job_id = f"{ticker}_{date}"
                 if already_queued(job_id):
+                    logging.debug(f"[PRODUCER] Skipped already-queued job: {job_id}")
                     continue  # skip jobs already pushed
                 job = {
                     "id": str(uuid.uuid4()),
