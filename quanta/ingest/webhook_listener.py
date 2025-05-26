@@ -29,3 +29,24 @@ async def ingest_insight(insight: Insight):
         file_path = os.path.join(INSIGHTS_DIR, f"{insight.id}.json")
         with open(file_path, "w") as f:
             f.write(insight.json())
+        logging.info(f"[ORCHESTRATOR] Stored insight {insight.id} to {file_path}")
+        # TODO: Add DB, vectorstore, or retraining logic here
+        return {"status": "success", "id": insight.id}
+    except Exception as e:
+        logging.error(f"[ORCHESTRATOR][ERROR] Failed to store insight: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Existing webhook endpoint remains unchanged ---
+@app.post("/webhook")
+async def webhook_endpoint(request: Request):
+    try:
+        data = await request.json()
+        parsed = parse_payload(data)
+        if not parsed['valid']:
+            send_insight_alert(f"Invalid payload: {parsed['error']}")
+            raise HTTPException(status_code=400, detail=parsed['error'])
+        ingest_event(parsed['payload'])
+        return {"status": "success"}
+    except Exception as e:
+        send_insight_alert(f"Webhook exception: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
