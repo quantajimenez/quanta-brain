@@ -31,7 +31,6 @@ def upload_insight_to_s3(result_dict, ticker, date):
         )
         s3_key = f"insights/{ticker}_{date}_merged.json"
         s3.put_object(Bucket=S3_BUCKET, Key=s3_key, Body=json.dumps(result_dict))
-        # (Optional) Also upload per-model files
         for model_name, model_data in result_dict['models'].items():
             indiv_key = f"insights/{ticker}_{date}_{model_name}_v{model_data['version']}.json"
             model_record = {
