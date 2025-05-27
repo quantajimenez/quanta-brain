@@ -14,10 +14,18 @@ logging.basicConfig(
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
+REDIS_URL = os.getenv("REDIS_URL")
+
+def send_heartbeat(worker_name):
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.set(f"health_{worker_name}", time.time())
+    except Exception as e:
+        print(f"Heartbeat error for {worker_name}: {e}")
+
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 HIST_BUCKET = os.getenv("S3_HIST_BUCKET", "quanta-historical-marketdata")
-REDIS_URL = os.getenv("REDIS_URL")
 
 from quanta.ingest.polygon_data_loader import load_bars
 
@@ -77,6 +85,7 @@ def main():
     r = redis.from_url(REDIS_URL)
     logging.info("[ML AGENT] Worker is running and connected to Redis...")
     while True:
+        send_heartbeat("ml_agent_worker")
         job = r.brpop("quanta_jobs", timeout=5)
         if job:
             try:
