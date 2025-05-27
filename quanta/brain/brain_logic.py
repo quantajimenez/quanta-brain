@@ -1,15 +1,23 @@
-# brain_logic.py
-
 import os
 import boto3
 import json
 import time
 import logging
+import redis
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
+
+REDIS_URL = os.getenv("REDIS_URL")
+
+def send_heartbeat(worker_name):
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.set(f"health_{worker_name}", time.time())
+    except Exception as e:
+        print(f"Heartbeat error for {worker_name}: {e}")
 
 INSIGHTS_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 SIGNALS_BUCKET = os.getenv("S3_SIGNALS_BUCKET", "quanta-signals")
@@ -34,7 +42,6 @@ def list_insight_keys():
     return keys
 
 def analyze_insight(insight):
-    # Dummy logic: replace with actual buy/sell detection.
     rf_pred = None
     try:
         rf_pred = insight["models"]["RandomForest"]["prediction"]
@@ -46,7 +53,6 @@ def analyze_insight(insight):
         action = "BUY"
     elif rf_pred == 0:
         action = "SELL"
-    # Extend here for multi-model, consensus, technical/news hybrid, etc.
 
     return {
         "id": insight.get("id"),
@@ -73,6 +79,7 @@ def main():
     logging.info("[BRAIN LOGIC] Starting brain logic worker.")
     seen = set()
     while True:
+        send_heartbeat("brain_logic_worker")
         keys = list_insight_keys()
         for key in keys:
             if key in seen:
