@@ -1,25 +1,22 @@
-# quanta/brain/brain_logic.py
+# brain_logic.py
 
 import os
 import boto3
 import json
 import time
 import logging
-from datetime import datetime
 
-# --- Logging config ---
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
+    format='%(asctime)s [%(levelname)s] %(message)s'
 )
 
-# --- S3 Config ---
-S3_INSIGHTS_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
-S3_SIGNALS_BUCKET = os.getenv("S3_SIGNALS_BUCKET", "quanta-signals")
+INSIGHTS_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
+SIGNALS_BUCKET = os.getenv("S3_SIGNALS_BUCKET", "quanta-signals")
 AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-2")
 INSIGHTS_PREFIX = "insights/"
+SIGNALS_PREFIX = "signals/"
 
-# --- S3 Client ---
 s3 = boto3.client(
     "s3",
     aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
@@ -27,89 +24,68 @@ s3 = boto3.client(
     region_name=AWS_REGION,
 )
 
-def list_all_insight_keys():
+def list_insight_keys():
     keys = []
-    paginator = s3.get_paginator("list_objects_v2")
-    for page in paginator.paginate(Bucket=S3_INSIGHTS_BUCKET, Prefix=INSIGHTS_PREFIX):
-        for obj in page.get("Contents", []):
-            if obj["Key"].endswith(".json"):
-                keys.append(obj["Key"])
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=INSIGHTS_BUCKET, Prefix=INSIGHTS_PREFIX):
+        for obj in page.get('Contents', []):
+            if obj['Key'].endswith('_merged.json'):  # only merged insights for now
+                keys.append(obj['Key'])
     return keys
 
-def load_insight(key):
-    obj = s3.get_object(Bucket=S3_INSIGHTS_BUCKET, Key=key)
-    return json.loads(obj["Body"].read().decode())
+def analyze_insight(insight):
+    # Dummy logic: replace with actual buy/sell detection.
+    rf_pred = None
+    try:
+        rf_pred = insight["models"]["RandomForest"]["prediction"]
+    except Exception as e:
+        logging.warning(f"RandomForest prediction missing: {e}")
 
-def generate_alert_from_insight(insight):
-    # Example rule: if any model predicts class 1 with >0.7, issue BUY; if class 0 with >0.7, SELL; else HOLD
-    models = insight.get("models", {})
-    ticker = insight.get("raw_job", {}).get("ticker", "UNKNOWN")
-    date = insight.get("raw_job", {}).get("date", "UNKNOWN")
-    id_ = insight.get("id", "")
-    highest_buy = 0
-    highest_sell = 0
-
-    for model, result in models.items():
-        try:
-            prob = result["probabilities"]
-            pred = result["prediction"]
-            if pred == 1 and prob[1] > highest_buy:
-                highest_buy = prob[1]
-            if pred == 0 and prob[0] > highest_sell:
-                highest_sell = prob[0]
-        except Exception:
-            continue
-
-    if highest_buy >= 0.7:
+    action = None
+    if rf_pred == 1:
         action = "BUY"
-        confidence = highest_buy
-    elif highest_sell >= 0.7:
+    elif rf_pred == 0:
         action = "SELL"
-        confidence = highest_sell
-    else:
-        action = "HOLD"
-        confidence = max(highest_buy, highest_sell)
+    # Extend here for multi-model, consensus, technical/news hybrid, etc.
 
-    # Build the alert object
-    alert = {
-        "id": id_,
-        "timestamp": datetime.utcnow().isoformat(),
-        "ticker": ticker,
-        "date": date,
+    return {
+        "id": insight.get("id"),
+        "ticker": insight.get("raw_job", {}).get("ticker"),
+        "date": insight.get("raw_job", {}).get("date"),
+        "timestamp": insight.get("timestamp"),
         "action": action,
-        "confidence": confidence,
-        "models": models,
-        "features": insight.get("features", []),
-        "reasoning": f"Rule-based aggregation of ML model outputs. BUY if any model predicts class 1 with >0.7 prob, SELL if class 0 >0.7, else HOLD."
+        "features": insight.get("features"),
+        "raw_insight": insight
     }
-    return alert
 
-def store_alert(alert):
-    key = f"alerts/{alert['ticker']}_{alert['date']}_{alert['action']}_{alert['id']}.json"
+def save_signal(signal):
+    if not signal["action"]:
+        return
+    key = f'{SIGNALS_PREFIX}{signal["ticker"]}_{signal["date"]}_signal.json'
     s3.put_object(
-        Bucket=S3_SIGNALS_BUCKET,
+        Bucket=SIGNALS_BUCKET,
         Key=key,
-        Body=json.dumps(alert)
+        Body=json.dumps(signal)
     )
-    logging.info(f"[BRAIN LOGIC] Stored alert: {key} | Action: {alert['action']} | Confidence: {alert['confidence']}")
+    logging.info(f"Saved signal to {SIGNALS_BUCKET}/{key}")
 
 def main():
-    logging.info("[BRAIN LOGIC] Starting alert generation loop.")
-    processed = set()  # To avoid double processing
-
+    logging.info("[BRAIN LOGIC] Starting brain logic worker.")
+    seen = set()
     while True:
-        keys = list_all_insight_keys()
+        keys = list_insight_keys()
         for key in keys:
-            if key in processed:
+            if key in seen:
                 continue
             try:
-                insight = load_insight(key)
-                alert = generate_alert_from_insight(insight)
-                store_alert(alert)
-                processed.add(key)
+                obj = s3.get_object(Bucket=INSIGHTS_BUCKET, Key=key)
+                insight = json.loads(obj["Body"].read().decode())
+                signal = analyze_insight(insight)
+                save_signal(signal)
+                seen.add(key)
             except Exception as e:
-                logging.error(f"[BRAIN LOGIC] Error processing {key}: {e}")
-        time.sleep(60)  # Check for new insights every minute
+                logging.error(f"Failed to process {key}: {e}")
+        time.sleep(120)  # Check every 2 min
 
 if __name__ == "__main__":
     main()
