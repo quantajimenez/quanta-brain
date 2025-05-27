@@ -4,11 +4,21 @@ import json
 import time
 import logging
 import requests
+import redis
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s'
 )
+
+REDIS_URL = os.getenv("REDIS_URL")
+
+def send_heartbeat(worker_name):
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.set(f"health_{worker_name}", time.time())
+    except Exception as e:
+        print(f"Heartbeat error for {worker_name}: {e}")
 
 S3_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 INSIGHTS_PREFIX = "insights/"
@@ -55,5 +65,6 @@ def load_and_post_all_insights():
 if __name__ == "__main__":
     logging.info("[BRAIN LOADER] Starting loader loop.")
     while True:
+        send_heartbeat("insight_loader")
         load_and_post_all_insights()
         time.sleep(300)
