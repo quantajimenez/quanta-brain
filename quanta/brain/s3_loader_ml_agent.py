@@ -3,6 +3,17 @@ import boto3
 import json
 import pandas as pd
 from datetime import datetime
+import redis
+import time
+
+REDIS_URL = os.getenv("REDIS_URL")
+
+def send_heartbeat(worker_name):
+    try:
+        r = redis.from_url(REDIS_URL)
+        r.set(f"health_{worker_name}", time.time())
+    except Exception as e:
+        print(f"Heartbeat error for {worker_name}: {e}")
 
 # --- ENV ---
 S3_BUCKET = "quanta-historical-marketdata"
@@ -39,25 +50,27 @@ def analyze_and_train(ticker, data):
     # Dummy ML analysis: just calculate mean close price
     closes = [bar.get('close') for bar in data if bar.get('close') is not None]
     if closes:
-        mean_close = sum(closes) / len(closes)
-        print(f"[{ticker}] ML: Mean Close = {mean_close:.2f} for {len(closes)} bars")
+        print(f"[{ticker}] ML: Mean Close = {sum(closes)/len(closes):.2f} for {len(closes)} bars")
     else:
         print(f"[{ticker}] ML: No data")
     # TODO: Replace with real ML model call (sklearn, keras, pytorch, etc)
 
 def main():
-    for ticker in TICKERS:
-        prefix = f"polygon/{ticker}/"
-        print(f"\n=== Processing {ticker} ===")
-        keys = get_s3_keys(S3_BUCKET, prefix)
-        print(f"Found {len(keys)} files in S3 for {ticker}.")
-        for key in sorted(keys):
-            date_str = key.split('/')[-1].replace('.json','')
-            try:
-                bars = load_json_from_s3(S3_BUCKET, key)
-                analyze_and_train(ticker, bars)
-            except Exception as e:
-                print(f"Error loading/analyzing {key}: {e}")
+    while True:
+        send_heartbeat("s3_loader_ml_agent")
+        for ticker in TICKERS:
+            prefix = f"polygon/{ticker}/"
+            print(f"\n=== Processing {ticker} ===")
+            keys = get_s3_keys(S3_BUCKET, prefix)
+            print(f"Found {len(keys)} files in S3 for {ticker}.")
+            for key in sorted(keys):
+                date_str = key.split('/')[-1].replace('.json','')
+                try:
+                    bars = load_json_from_s3(S3_BUCKET, key)
+                    analyze_and_train(ticker, bars)
+                except Exception as e:
+                    print(f"Error loading/analyzing {key}: {e}")
+        time.sleep(300)
 
 if __name__ == "__main__":
     main()
