@@ -1,34 +1,38 @@
-# quanta/realtime/main.py  
+# quanta/realtime/main.py
 
 from fastapi import FastAPI, APIRouter
 import threading
 import uvicorn
-import logging
-import os
 
-# Import all sub-API FastAPI apps
+# Sub-app FastAPI instances
 from quanta.mesh.api import app as mesh_api
 from quanta.ingest.webhook_listener import app as ingest_api
 from quanta.mesh.health_dashboard import app as health_api
 
+# Routers (lightweight, like YouTube)
 from quanta.brain.youtube_router import router as youtube_router
 
+# Main orchestrator app
 orchestrator_app = FastAPI(title="Quanta Unified Orchestrator")
 
-# Mount full FastAPI sub-apps under specific prefixes
+# Mount full sub-apps
 orchestrator_app.mount("/mesh", mesh_api)
-orchestrator_app.mount("/ingest", ingest_api)      # This now owns ALL /ingest/* endpoints!
+orchestrator_app.mount("/ingest", ingest_api)
 orchestrator_app.mount("/health", health_api)
 
-# Register lightweight routers directly (like YouTube)
+# Mount lightweight routers using a shared router (recommended style)
 api_router = APIRouter()
 api_router.include_router(youtube_router, prefix="/youtube")
+
+# Attach to app
 orchestrator_app.include_router(api_router)
 
+# Root healthcheck
 @orchestrator_app.get("/")
 def root():
     return {"status": "Quanta Unified Orchestrator is live"}
 
+# Background poller (optional)
 from quanta.ingest.resilience import start_poller
 
 def start_background_poller():
