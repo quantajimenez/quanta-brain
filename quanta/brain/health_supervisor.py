@@ -5,7 +5,6 @@ import redis
 import time
 import boto3
 import json
-from datetime import datetime
 
 # --- Config ---
 REDIS_URL = os.getenv("REDIS_URL")
@@ -55,7 +54,15 @@ def main():
                 print(f"[SUPERVISOR] No heartbeat for {worker}.")
                 log_alert_to_s3(worker, None, now_ts)
                 continue
-            last = float(last)
+            # Redis returns bytes; decode if needed
+            if isinstance(last, bytes):
+                last = last.decode()
+            try:
+                last = float(last)
+            except Exception as e:
+                print(f"[SUPERVISOR] Bad heartbeat value for {worker}: {last}. Error: {e}")
+                log_alert_to_s3(worker, last, now_ts)
+                continue
             diff = now_ts - last
             if diff > ALERT_THRESHOLD_SEC:
                 print(f"[SUPERVISOR] {worker} missed heartbeat by {diff} sec.")
