@@ -17,7 +17,7 @@ def send_heartbeat(worker_name):
         r = redis.from_url(REDIS_URL)
         r.set(f"health_{worker_name}", time.time())
     except Exception as e:
-        print(f"Heartbeat error for {worker_name}: {e}")
+        logging.error(f"Heartbeat error for {worker_name}: {e}")
 
 INSIGHTS_BUCKET = os.getenv("S3_INSIGHTS_BUCKET", "quanta-insights")
 SIGNALS_BUCKET = os.getenv("S3_SIGNALS_BUCKET", "quanta-signals")
