@@ -11,12 +11,12 @@ def worker_loop():
     while True:
         url = r.rpop("quanta_jobs_youtube")
         if url:
-            print(f"🚀 Processing: {url}")
-            agent.ingest_video(url.decode("utf-8"))
+            url_str = url.decode("utf-8")  # ✅ decode once here
+            print(f"🚀 Processing: {url_str}")
+            agent.ingest_video(url_str)
         else:
-            print("🕒 No jobs. Sleeping...")
+            print("🕐 No jobs. Sleeping...")
             time.sleep(10)
 
 if __name__ == "__main__":
     worker_loop()
-
