@@ -21,7 +21,7 @@ def list_youtube_insights():
     try:
         response = s3.list_objects_v2(
             Bucket="quanta-insights",
-            Prefix="insights/"
+            Prefix="youtube/youtube_patterns"
         )
         files = [
             obj["Key"]
