@@ -17,14 +17,14 @@ s3 = boto3.client(
 )
 
 def list_youtube_insights():
-    print("🔎 Looking for YouTube insights in quanta-insights...")
+    print("🔍 Looking for YouTube insights in quanta-insights...")
     try:
         response = s3.list_objects_v2(
             Bucket="quanta-insights",
-            Prefix="insights/YOUTUBE_"
+            Prefix="insights/youtube_"  # ✅ Lowercase to match real keys
         )
         files = [obj["Key"] for obj in response.get("Contents", [])]
-        print(f"📦 Found {len(files)} files")
+        print(f"📂 Found {len(files)} insight files")
         return files
     except Exception as e:
         print(f"❌ Error listing insights: {e}")
@@ -47,6 +47,7 @@ def process_and_write_signal(key):
         }
 
         signal_key = key.replace("insights", "signals/youtube_signals")
+
         s3.put_object(
             Bucket="quanta-signals",
             Key=signal_key,
@@ -55,7 +56,6 @@ def process_and_write_signal(key):
         )
 
         print(f"✅ Wrote signal: {signal_key}")
-
     except Exception as e:
         print(f"❌ Failed to process {key}: {e}")
 
@@ -65,6 +65,7 @@ def run():
     if not files:
         print("⚠️ No YouTube insights found.")
         return
+
     for key in files:
         process_and_write_signal(key)
 
