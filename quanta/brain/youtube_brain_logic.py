@@ -21,10 +21,14 @@ def list_youtube_insights():
     try:
         response = s3.list_objects_v2(
             Bucket="quanta-insights",
-            Prefix="insights/youtube_"  # ✅ Lowercase to match real keys
+            Prefix="insights/"
         )
-        files = [obj["Key"] for obj in response.get("Contents", [])]
-        print(f"📂 Found {len(files)} insight files")
+        files = [
+            obj["Key"]
+            for obj in response.get("Contents", [])
+            if "YOUTUBE" in obj["Key"].upper()
+        ]
+        print(f"✅ Found {len(files)} YOUTUBE insight file(s)")
         return files
     except Exception as e:
         print(f"❌ Error listing insights: {e}")
@@ -47,7 +51,6 @@ def process_and_write_signal(key):
         }
 
         signal_key = key.replace("insights", "signals/youtube_signals")
-
         s3.put_object(
             Bucket="quanta-signals",
             Key=signal_key,
@@ -57,15 +60,14 @@ def process_and_write_signal(key):
 
         print(f"✅ Wrote signal: {signal_key}")
     except Exception as e:
-        print(f"❌ Failed to process {key}: {e}")
+        print(f"❌ Failed to process ({key}): {e}")
 
 def run():
     print("🧠 Starting YouTube brain logic...")
     files = list_youtube_insights()
     if not files:
-        print("⚠️ No YouTube insights found.")
+        print("⚠️  No YouTube insights found.")
         return
-
     for key in files:
         process_and_write_signal(key)
 
