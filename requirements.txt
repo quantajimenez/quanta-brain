@@ -22,3 +22,4 @@ redis
 requests
 polygon-api-client
 scikit-learn
+youtube-transcript-api
