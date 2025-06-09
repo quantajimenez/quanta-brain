@@ -19,5 +19,5 @@ requests
 polygon-api-client
 google-api-python-client>=2.0.0
 youtube-transcript-api
-whisper
+git+https://github.com/openai/whisper.git
 pytube
