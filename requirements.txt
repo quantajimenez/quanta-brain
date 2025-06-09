@@ -23,5 +23,7 @@ requests
 polygon-api-client
 scikit-learn
 youtube-transcript-api
-git+https://github.com/openai/whisper.git
+git+https://github.com/openai/whisper.git@v20230314
 pytube
+pypika==0.48.9
+
