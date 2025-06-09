@@ -24,3 +24,4 @@ polygon-api-client
 scikit-learn
 youtube-transcript-api
 whisper
+pytube
