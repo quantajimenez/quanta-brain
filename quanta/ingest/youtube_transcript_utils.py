@@ -7,7 +7,9 @@ import os
 import whisper
 from pytube import YouTube
 
+# Load Whisper model once at module level
 whisper_model = whisper.load_model("base")
+
 
 def extract_transcript(video_id: str) -> str:
     try:
@@ -15,6 +17,7 @@ def extract_transcript(video_id: str) -> str:
         return "\n".join([line['text'] for line in transcript_list])
     except (NoTranscriptFound, TranscriptsDisabled):
         return transcribe_audio_with_whisper(video_id)
+
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
     print("🔁 No captions found — falling back to Whisper STT")
