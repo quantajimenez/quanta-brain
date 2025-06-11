@@ -7,18 +7,25 @@ import os
 from pytube import YouTube
 from faster_whisper import WhisperModel
 
-# Load model once
-whisper_model = WhisperModel("base", compute_type="int8")  # or float16 for GPU
+# Load Whisper model once
+whisper_model = WhisperModel("base", compute_type="int8")  # Or float16 for GPU
 
 def extract_transcript(video_id: str) -> str:
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        return "\n".join([line['text'] for line in transcript_list])
-    except (NoTranscriptFound, TranscriptsDisabled):
+        transcript_text = "\n".join([line['text'] for line in transcript_list])
+        if not transcript_text.strip():
+            raise ValueError("Transcript from YouTube API is empty.")
+        return transcript_text
+    except (NoTranscriptFound, TranscriptsDisabled, ValueError) as e:
+        print(f"⚠️ Fallback to Whisper for video {video_id}: {e}")
         return transcribe_audio_with_whisper(video_id)
+    except Exception as e:
+        print(f"❌ Unexpected error for video {video_id}: {e}")
+        return ""
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
-    print("🔁 No captions found — falling back to Faster-Whisper STT")
+    print(f"🔁 No captions found — falling back to faster-Whisper STT for {video_id}")
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     yt = YouTube(yt_url)
@@ -35,5 +42,9 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             output_path
         ], check=True)
 
-        segments, _ = whisper_model.transcribe(output_path)
-        return " ".join([segment.text for segment in segments])
+        try:
+            segments, _ = whisper_model.transcribe(output_path)
+            return "\n".join([segment.text for segment in segments]) if segments else ""
+        except Exception as e:
+            print(f"❌ Whisper transcription failed: {e}")
+            return ""
