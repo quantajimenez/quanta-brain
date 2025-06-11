@@ -1,20 +1,18 @@
 import os
 import json
 import boto3
-from datetime import datetime
+import uuid
 
-
-def upload_signal_to_s3(data: dict, prefix: str = "insights", label: str = "YOUTUBE") -> str:
+def upload_signal_to_s3(data: dict, prefix: str = "youtube") -> str:
     """
-    Uploads a JSON insight file to the configured S3 bucket.
-    
+    Uploads a single signal JSON to S3 with a unique UUID-based key.
+
     Args:
-        data (dict): The data to upload.
-        prefix (str): S3 folder prefix. Default is 'insights'.
-        label (str): Optional label for the file name (e.g., 'YOUTUBE', 'NEWS').
-    
+        data (dict): The signal data to upload.
+        prefix (str): Folder prefix within the bucket, defaults to 'youtube'.
+
     Returns:
-        str: The final S3 object key used.
+        str: The S3 key of the uploaded object.
     """
     bucket = os.getenv("S3_BUCKET_NAME", "quanta-insights")
     region = os.getenv("AWS_REGION", "us-east-1")
@@ -22,11 +20,9 @@ def upload_signal_to_s3(data: dict, prefix: str = "insights", label: str = "YOUT
     secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
 
     if not all([bucket, region, access_key, secret_key]):
-        raise ValueError("Missing one or more required S3 environment variables.")
+        raise ValueError("❌ Missing one or more required S3 environment variables.")
 
-    # Construct file name: e.g., insights/YOUTUBE_20250527_153210.json
-    filename = f"{label}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
-    object_key = f"{prefix}/{filename}"
+    object_key = f"{prefix}/{uuid.uuid4()}.json"
 
     s3 = boto3.client(
         "s3",
@@ -44,3 +40,4 @@ def upload_signal_to_s3(data: dict, prefix: str = "insights", label: str = "YOUT
 
     print(f"✅ Uploaded to S3: s3://{bucket}/{object_key}")
     return object_key
+
