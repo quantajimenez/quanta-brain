@@ -26,4 +26,5 @@ youtube-transcript-api
 faster-whisper==1.0.1
 pytube
 pypika==0.48.9
+faster-whisper
 
