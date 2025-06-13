@@ -25,37 +25,27 @@ def extract_transcript(video_id: str) -> str:
         return ""
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
-    print(f"🔁 No captions found — falling back to faster-Whisper STT for {video_id}")
+    print("🔁 No captions found – falling back to Faster-Whisper STT")
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     yt = YouTube(yt_url)
     stream = yt.streams.filter(only_audio=True).first()
 
-    if not stream:
-        print(f"❌ No audio stream found for {video_id}")
-        return ""
-
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input_audio.mp4")
         output_path = os.path.join(tmpdir, "converted_audio.wav")
-        try:
-            stream.download(filename=input_path)
-            result = subprocess.run([
-                "ffmpeg", "-y", "-i", input_path,
-                "-ar", "16000", "-ac", "1",
-                output_path
-            ], capture_output=True)
+        print(f"🎧 Downloading audio: {yt.title}")
+        stream.download(filename=input_path)
 
-            if result.returncode != 0:
-                print(f"❌ ffmpeg failed: {result.stderr.decode()}")
-                return ""
+        print(f"🎛️ Converting to WAV: {input_path} -> {output_path}")
+        subprocess.run([
+            "ffmpeg", "-y", "-i", input_path,
+            "-ar", "16000", "-ac", "1",
+            output_path
+        ], check=True)
 
-            segments, _ = whisper_model.transcribe(output_path)
-            if not segments:
-                print(f"⚠️ Whisper returned no segments for {video_id}")
-                return ""
+        print(f"🧠 Transcribing WAV with Faster-Whisper...")
+        segments = whisper_model.transcribe(output_path)
+        print(f"✅ Segments: {segments}")
 
-            return "\n".join([seg.text for seg in segments])
-        except Exception as e:
-            print(f"❌ Whisper fallback failed for {video_id}: {e}")
-            return ""
+    return "\n".join([seg.text for seg in segments['segments']]) if 'segments' in segments else ""
