@@ -8,7 +8,7 @@ from pytube import YouTube
 from faster_whisper import WhisperModel
 
 # Load once
-whisper_model = WhisperModel("base", compute_type="int8")
+whisper_model = WhisperModel("medium", compute_type="int8")
 
 def extract_transcript(video_id: str) -> str:
     try:
@@ -41,8 +41,8 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
         print(f"🧠 Transcribing with Faster-Whisper...")
         segments = whisper_model.transcribe(output_path)
         
-        if 'segments' not in segments:
-            print("❌ Whisper did not return any segments.")
+        if 'segments' not in segments or not segments['segments']:
+            print("❌ Whisper returned no valid transcription segments.")
             return ""
 
         texts = [seg.text for seg in segments['segments']]
