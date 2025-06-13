@@ -7,22 +7,15 @@ import os
 from pytube import YouTube
 from faster_whisper import WhisperModel
 
-# Load Whisper model once
-whisper_model = WhisperModel("base", compute_type="int8")  # Or float16 for GPU
+# Load once
+whisper_model = WhisperModel("base", compute_type="int8")
 
 def extract_transcript(video_id: str) -> str:
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        transcript_text = "\n".join([line['text'] for line in transcript_list])
-        if not transcript_text.strip():
-            raise ValueError("Transcript from YouTube API is empty.")
-        return transcript_text
-    except (NoTranscriptFound, TranscriptsDisabled, ValueError) as e:
-        print(f"⚠️ Fallback to Whisper for video {video_id}: {e}")
+        return "\n".join([line['text'] for line in transcript_list])
+    except (NoTranscriptFound, TranscriptsDisabled):
         return transcribe_audio_with_whisper(video_id)
-    except Exception as e:
-        print(f"❌ Unexpected error for video {video_id}: {e}")
-        return ""
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
     print("🔁 No captions found – falling back to Faster-Whisper STT")
@@ -34,18 +27,25 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input_audio.mp4")
         output_path = os.path.join(tmpdir, "converted_audio.wav")
-        print(f"🎧 Downloading audio: {yt.title}")
+
+        print(f"🎧 Downloading audio from YouTube...")
         stream.download(filename=input_path)
 
-        print(f"🎛️ Converting to WAV: {input_path} -> {output_path}")
+        print(f"🎛️ Converting audio to WAV...")
         subprocess.run([
             "ffmpeg", "-y", "-i", input_path,
             "-ar", "16000", "-ac", "1",
             output_path
         ], check=True)
 
-        print(f"🧠 Transcribing WAV with Faster-Whisper...")
+        print(f"🧠 Transcribing with Faster-Whisper...")
         segments = whisper_model.transcribe(output_path)
-        print(f"✅ Segments: {segments}")
+        
+        if 'segments' not in segments:
+            print("❌ Whisper did not return any segments.")
+            return ""
 
-    return "\n".join([seg.text for seg in segments['segments']]) if 'segments' in segments else ""
+        texts = [seg.text for seg in segments['segments']]
+        print(f"✅ Transcribed {len(texts)} segments.")
+        return "\n".join(texts)
+
