@@ -23,21 +23,30 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     yt = YouTube(yt_url)
-    stream = yt.streams.filter(only_audio=True).first()
+
+    stream = yt.streams.filter(only_audio=True, file_extension='mp4').order_by('abr').desc().first()
+    if not stream:
+        raise Exception("No audio stream found.")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         input_path = os.path.join(tmpdir, "input_audio.mp4")
         output_path = os.path.join(tmpdir, "converted_audio.wav")
 
-        print("⬇️ Downloading audio from YouTube...")
+        print("📥 Downloading audio from YouTube...")
         stream.download(filename=input_path)
 
         print("🔄 Converting audio to WAV...")
-        subprocess.run([
+        result = subprocess.run([
             "ffmpeg", "-y", "-i", input_path,
             "-ar", "16000", "-ac", "1",
             output_path
-        ], check=True)
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        if result.returncode != 0:
+            print("❌ FFmpeg failed:", result.stderr.decode())
+            raise Exception("FFmpeg conversion failed.")
+
+        print(f"📁 Output file size: {os.path.getsize(output_path)} bytes")
 
         print("🧠 Transcribing with Faster-Whisper...")
         segments = whisper_model.transcribe(output_path)
