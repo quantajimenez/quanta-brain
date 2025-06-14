@@ -24,37 +24,38 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     yt = YouTube(yt_url)
 
-    stream = yt.streams.filter(only_audio=True, file_extension='mp4').order_by('abr').desc().first()
+    # Download a progressive stream with audio + video
+    stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
     if not stream:
-        raise Exception("No audio stream found.")
+        raise Exception("No suitable stream found.")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        input_path = os.path.join(tmpdir, "input_audio.mp4")
-        output_path = os.path.join(tmpdir, "converted_audio.wav")
+        input_path = os.path.join(tmpdir, "input.mp4")
+        output_path = os.path.join(tmpdir, "converted.wav")
 
-        print("📥 Downloading audio from YouTube...")
+        print("📥 Downloading audio...")
         stream.download(filename=input_path)
 
-        print("🔄 Converting audio to WAV...")
+        print("🎛️ Converting to mono WAV...")
         result = subprocess.run([
             "ffmpeg", "-y", "-i", input_path,
-            "-ar", "16000", "-ac", "1",
-            output_path
+            "-ar", "16000", "-ac", "1", output_path
         ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if result.returncode != 0:
             print("❌ FFmpeg failed:", result.stderr.decode())
             raise Exception("FFmpeg conversion failed.")
 
-        print(f"📁 Output file size: {os.path.getsize(output_path)} bytes")
+        print(f"📁 Output WAV size: {os.path.getsize(output_path)} bytes")
 
-        print("🧠 Transcribing with Faster-Whisper...")
+        print("🧠 Transcribing...")
         segments = whisper_model.transcribe(output_path)
 
+        print("📄 Whisper result raw:", segments)
+
         if 'segments' not in segments or not segments['segments']:
-            print("❌ Whisper returned no valid transcription segments.")
+            print("❌ No transcription segments.")
             return ""
 
         texts = [seg.text for seg in segments['segments']]
-        print(f"✅ Transcribed {len(texts)} segments.")
         return "\n".join(texts)
