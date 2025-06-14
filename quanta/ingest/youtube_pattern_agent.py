@@ -21,28 +21,28 @@ PATTERN_KEYWORDS = [
 
 class YouTubePatternAgent:
     def __init__(self):
-        logger.info("⚙️ Booting LangChain memory...")
+        logger.info("🧠 Booting LangChain memory...")
         self.llm, self.embeddings, self.vectorstore = boot_langchain_memory()
 
     def ingest_video(self, video_url: str):
-        logger.info(f"🎬 Ingesting video: {video_url}")
+        logger.info(f"🎥 Ingesting video: {video_url}")
         try:
             meta = fetch_video_metadata(video_url)
             transcript = extract_transcript(meta["video_id"])
             logger.info(f"📜 Transcript loaded ({len(transcript)} chars)")
 
             if not transcript.strip():
-                logger.warning("⚠️ No patterns found in transcript.")
+                logger.warning("⚠️ Empty transcript, skipping video.")
                 return
 
             patterns = self.extract_patterns(transcript)
-
             if not patterns:
-                logger.warning("⚠️ No patterns found.")
+                logger.warning("⚠️ No patterns found in transcript.")
                 return
 
             self.store_memory(meta, transcript, patterns)
             logger.info(f"✅ Stored patterns: {patterns}")
+
         except Exception as e:
             logger.error(f"❌ Failed to ingest video: {e}")
 
@@ -79,7 +79,7 @@ class YouTubePatternAgent:
                 "source_url": f"https://www.youtube.com/watch?v={meta['video_id']}",
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             }
-            upload_signal_to_s3(signal)
+            upload_signal_to_s3(signal, prefix="youtube")
 
     def ingest_playlist(self, playlist_url: str, max_videos: int = 20):
         logger.info(f"📺 Ingesting playlist: {playlist_url}")
@@ -99,9 +99,8 @@ class YouTubePatternAgent:
         except Exception as e:
             logger.error(f"❌ Failed channel ingest: {e}")
 
+
+# 🔁 Entry point
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
-    agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
-    # agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
-
-
+    agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
