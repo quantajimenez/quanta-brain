@@ -12,6 +12,7 @@ from langchain_core.documents import Document
 
 logger = setup_logger("YouTubePatternAgent")
 
+# Technical trading patterns to detect
 PATTERN_KEYWORDS = [
     "double top", "double bottom", "head and shoulders", "inverse head and shoulders",
     "cup and handle", "breakout", "support", "resistance",
@@ -29,7 +30,7 @@ class YouTubePatternAgent:
         try:
             meta = fetch_video_metadata(video_url)
             transcript = extract_transcript(meta["video_id"])
-            logger.info(f"📜 Transcript loaded ({len(transcript)} chars)")
+            logger.info(f"📄 Transcript loaded ({len(transcript)} chars)")
 
             if not transcript.strip():
                 logger.warning("⚠️ Empty transcript, skipping video.")
@@ -42,7 +43,6 @@ class YouTubePatternAgent:
 
             self.store_memory(meta, transcript, patterns)
             logger.info(f"✅ Stored patterns: {patterns}")
-
         except Exception as e:
             logger.error(f"❌ Failed to ingest video: {e}")
 
@@ -56,9 +56,8 @@ class YouTubePatternAgent:
 
     def store_memory(self, meta: dict, transcript: str, patterns: list):
         for pattern in patterns:
-            content = f"{meta['title']} | {meta['channel']} | Pattern: {pattern}\n\n{transcript[:500]}"
             doc = Document(
-                page_content=content,
+                page_content=f"{meta['title']} | {meta['channel']} | Pattern: {pattern}\n\n{transcript[:500]}",
                 metadata={
                     "video_id": meta["video_id"],
                     "pattern": pattern,
@@ -79,10 +78,9 @@ class YouTubePatternAgent:
                 "source_url": f"https://www.youtube.com/watch?v={meta['video_id']}",
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             }
-            upload_signal_to_s3(signal, prefix="youtube")
+            upload_signal_to_s3(signal)
 
     def ingest_playlist(self, playlist_url: str, max_videos: int = 20):
-        logger.info(f"📺 Ingesting playlist: {playlist_url}")
         try:
             video_urls = crawl_playlist(playlist_url)
             for url in video_urls[:max_videos]:
@@ -91,7 +89,6 @@ class YouTubePatternAgent:
             logger.error(f"❌ Failed playlist ingest: {e}")
 
     def ingest_channel(self, channel_id: str, max_videos: int = 20):
-        logger.info(f"📡 Ingesting channel uploads: {channel_id}")
         try:
             video_urls = crawl_channel_uploads(channel_id, max_videos)
             for url in video_urls:
@@ -100,7 +97,10 @@ class YouTubePatternAgent:
             logger.error(f"❌ Failed channel ingest: {e}")
 
 
-# 🔁 Entry point
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
+
+    # 📺 Choose one of the ingestion modes:
+    # agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
     agent.ingest_channel("UCGL9ubdGcvZh_dvSV2z1hoQ")  # The Trading Channel
+
