@@ -5,18 +5,13 @@ import uuid
 from datetime import datetime
 from quanta.utils.logger import setup_logger
 from quanta.crews.langchain_boot import boot_langchain_memory
-from quanta.ingest.youtube_scraper import (
-    fetch_video_metadata,
-    crawl_playlist,
-    crawl_channel_uploads
-)
+from quanta.ingest.youtube_scraper import fetch_video_metadata, crawl_playlist, crawl_channel_uploads
 from quanta.ingest.youtube_transcript_utils import extract_transcript
 from quanta.utils.s3_uploader import upload_signal_to_s3
 from langchain_core.documents import Document
 
 logger = setup_logger("YouTubePatternAgent")
 
-# Technical trading patterns to detect
 PATTERN_KEYWORDS = [
     "double top", "double bottom", "head and shoulders", "inverse head and shoulders",
     "cup and handle", "breakout", "support", "resistance",
@@ -26,25 +21,28 @@ PATTERN_KEYWORDS = [
 
 class YouTubePatternAgent:
     def __init__(self):
-        logger.info("🧠 Booting LangChain memory...")
+        logger.info("⚙️ Booting LangChain memory...")
         self.llm, self.embeddings, self.vectorstore = boot_langchain_memory()
 
     def ingest_video(self, video_url: str):
+        logger.info(f"🎬 Ingesting video: {video_url}")
         try:
-            logger.info(f"🎥 Ingesting video: {video_url}")
             meta = fetch_video_metadata(video_url)
             transcript = extract_transcript(meta["video_id"])
-            logger.info(f"📝 Transcript loaded ({len(transcript)} chars)")
+            logger.info(f"📜 Transcript loaded ({len(transcript)} chars)")
+
+            if not transcript.strip():
+                logger.warning("⚠️ No patterns found in transcript.")
+                return
 
             patterns = self.extract_patterns(transcript)
 
             if not patterns:
-                logger.warning("⚠️ No patterns found in transcript.")
+                logger.warning("⚠️ No patterns found.")
                 return
 
             self.store_memory(meta, transcript, patterns)
             logger.info(f"✅ Stored patterns: {patterns}")
-
         except Exception as e:
             logger.error(f"❌ Failed to ingest video: {e}")
 
@@ -71,7 +69,6 @@ class YouTubePatternAgent:
             self.vectorstore.add_documents([doc])
             logger.info(f"🧠 Stored in FAISS: {pattern} from {meta['video_id']}")
 
-            # ✅ Also upload to S3 as signal
             signal = {
                 "id": str(uuid.uuid4()),
                 "source": "youtube",
@@ -102,13 +99,9 @@ class YouTubePatternAgent:
         except Exception as e:
             logger.error(f"❌ Failed channel ingest: {e}")
 
-# ✅ Batch worker entry point — use for cron jobs or Render execution
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
-    
-    # 🔁 Choose one of the ingestion modes:
     agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
-
     # agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
 
 
