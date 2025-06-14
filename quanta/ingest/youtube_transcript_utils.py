@@ -18,7 +18,7 @@ def extract_transcript(video_id: str) -> str:
         return transcribe_audio_with_whisper(video_id)
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
-    print("🔁 No captions found – falling back to Faster-Whisper STT")
+    print("📼 No captions found – falling back to Faster-Whisper STT")
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     yt = YouTube(yt_url)
@@ -28,10 +28,10 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
         input_path = os.path.join(tmpdir, "input_audio.mp4")
         output_path = os.path.join(tmpdir, "converted_audio.wav")
 
-        print("📥 Downloading audio from YouTube...")
+        print("⬇️ Downloading audio from YouTube...")
         stream.download(filename=input_path)
 
-        print("🎧 Converting audio to WAV...")
+        print("🔁 Converting audio to WAV...")
         subprocess.run([
             "ffmpeg", "-y", "-i", input_path,
             "-ar", "16000", "-ac", "1",
