@@ -103,4 +103,4 @@ class YouTubePatternAgent:
 # 🔁 Entry point
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
-    agent.ingest_channel("UC3tM4HZozu-hT8f0sC0noyg")  # The Trading Channel
+    agent.ingest_channel("UCGL9ubdGcvZh_dvSV2z1hoQ")  # The Trading Channel
