@@ -79,6 +79,9 @@ def crawl_channel_uploads(channel_id: str, max_videos: int = 50) -> List[str]:
 
     try:
         channel = youtube.channels().list(part="contentDetails", id=channel_id).execute()
+        if "items" not in channel or not channel["items"]:
+            raise Exception("❌ No items found in channel response. Check channel_id or API key.")
+
         uploads_playlist_id = channel["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
         
         video_urls = []
@@ -98,4 +101,6 @@ def crawl_channel_uploads(channel_id: str, max_videos: int = 50) -> List[str]:
         return video_urls
     except HttpError as e:
         raise Exception(f"❌ Channel crawl failed: {e}")
+    except Exception as e:
+        raise Exception(f"❌ Unexpected channel ingest error: {e}")
 
