@@ -28,25 +28,23 @@ def get_playlist_videos(playlist_id: str, max_videos: int = 20) -> list:
 
 
 def get_channel_uploads(channel_id: str, max_videos: int = 20) -> list:
-    """
-    Fetch recent video IDs from a YouTube channel using pytube.
+    from pytube import Channel
 
-    Args:
-        channel_id (str): The YouTube channel ID.
-        max_videos (int): Max number of videos to return.
-
-    Returns:
-        list: List of video IDs.
-    """
     try:
         url = f"https://www.youtube.com/channel/{channel_id}"
         print(f"🔗 Fetching channel: {url}")
         channel = Channel(url)
-        videos = [video.video_id for video in channel.videos[:max_videos]]
+
+        # Materialize generator into a list
+        video_list = list(channel.videos)
+
+        videos = [video.video_id for video in video_list[:max_videos]]
         print(f"📹 Found {len(videos)} videos in channel.")
         return videos
+
     except Exception as e:
         import traceback
         print(f"❌ Failed to fetch channel uploads: {e}")
         traceback.print_exc()
         return []
+
