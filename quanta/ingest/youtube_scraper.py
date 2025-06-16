@@ -21,7 +21,9 @@ def get_playlist_videos(playlist_id: str, max_videos: int = 20) -> list:
         print(f"📺 Found {len(videos)} videos in playlist.")
         return videos
     except Exception as e:
+        import traceback
         print(f"❌ Failed to fetch playlist videos: {e}")
+        traceback.print_exc()
         return []
 
 
@@ -44,5 +46,7 @@ def get_channel_uploads(channel_id: str, max_videos: int = 20) -> list:
         print(f"📹 Found {len(videos)} videos in channel.")
         return videos
     except Exception as e:
+        import traceback
         print(f"❌ Failed to fetch channel uploads: {e}")
+        traceback.print_exc()
         return []
