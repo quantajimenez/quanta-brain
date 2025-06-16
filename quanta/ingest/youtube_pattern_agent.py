@@ -8,7 +8,7 @@ import traceback
 from quanta.utils.logger import setup_logger
 from quanta.utils.s3_uploader import upload_signal_to_s3
 from quanta.ingest.youtube_transcript_utils import extract_transcript
-from quanta.ingest.youtube_scraper import get_playlist_videos, get_channel_uploads
+from quanta.utils.youtube_scraper import get_playlist_videos, get_channel_uploads
 
 logger = setup_logger("youtubePatternAgent")
 
