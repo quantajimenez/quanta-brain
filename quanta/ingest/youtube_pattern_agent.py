@@ -2,114 +2,98 @@
 
 import os
 import uuid
-from datetime import datetime
-from collections import defaultdict
+import json
+import traceback
 
 from quanta.utils.logger import setup_logger
-from quanta.crews.langchain_boot import boot_langchain_memory
-from quanta.ingest.youtube_scraper import fetch_video_metadata, crawl_playlist, crawl_channel_uploads
-from quanta.ingest.youtube_transcript_utils import extract_transcript
 from quanta.utils.s3_uploader import upload_signal_to_s3
-from langchain_core.documents import Document
-import boto3
-import json
+from quanta.ingest.youtube_transcript_utils import extract_transcript
+from quanta.utils.youtube_scraper import get_playlist_videos, get_channel_uploads
 
-logger = setup_logger("YouTubePatternAgent")
-s3 = boto3.client("s3")
+logger = setup_logger("youtubePatternAgent")
 
-# Technical trading patterns to detect
+# Sample pattern keywords
 PATTERN_KEYWORDS = [
-    "double top", "double bottom", "head and shoulders", "inverse head and shoulders",
-    "cup and handle", "breakout", "support", "resistance",
-    "RSI", "MACD", "moving average", "bullish", "bearish",
-    "trend line", "channel", "ascending triangle", "descending triangle"
+    "breakout", "double bottom", "head and shoulders", "inverse head and shoulders",
+    "cup and handle", "support", "resistance",
+    "bullish", "bearish", "momentum", "volume", "reversal"
 ]
 
 
 class YouTubePatternAgent:
     def __init__(self):
-        logger.info("🧠 Booting LangChain memory...")
-        self.llm, self.embeddings, self.vectorstore = boot_langchain_memory()
+        self.logger = logger
+        self.processed = 0
+        self.failed = 0
 
-    def ingest_video(self, video_url: str):
-        logger.info(f"📹 Ingesting video: {video_url}")
+    def ingest_clip(self, video_id: str):
         try:
-            meta = fetch_video_metadata(video_url)
-            transcript = extract_transcript(meta["video_id"])
-
-            if not transcript or len(transcript.strip()) == 0:
-                logger.warning("⚠️ Transcript blank, skipping video.")
+            transcript = extract_transcript(video_id)
+            if not transcript or transcript.strip() == "":
+                logger.warning(f"⚠️ Transcript blank, skipping video: {video_id}")
+                self.failed += 1
                 return
 
             patterns = self.extract_patterns(transcript)
-
             if not patterns:
-                logger.warning("⚠️ No patterns found in transcript.")
+                logger.info(f"ℹ️ No patterns found in video: {video_id}")
                 return
 
-            self.store_memory(meta, transcript, patterns)
-            logger.info(f"✅ Stored patterns: {patterns}")
+            self.save_pattern_signal(video_id, transcript, patterns)
+            self.processed += 1
 
         except Exception as e:
-            logger.error(f"❌ Failed to ingest video: {e}")
+            logger.error(f"❌ Failed to ingest video {video_id}: {e}")
+            traceback.print_exc()
+            self.failed += 1
 
     def extract_patterns(self, transcript: str):
         found = []
-        lower_text = transcript.lower()
-        for pattern in PATTERN_KEYWORDS:
-            if pattern in lower_text:
-                found.append(pattern)
+        for word in PATTERN_KEYWORDS:
+            if word.lower() in transcript.lower():
+                found.append(word)
         return list(set(found))
 
-    def store_memory(self, meta: dict, transcript: str, patterns: list):
-        for pattern in patterns:
-            content = f"{meta['title']} | {meta['channel']} | Pattern: {pattern}\n\n{transcript[:500]}"
-            doc = Document(
-                page_content=content,
-                metadata={
-                    "video_id": meta["video_id"],
-                    "pattern": pattern,
-                    "channel": meta["channel"],
-                    "source_url": f"https://www.youtube.com/watch?v={meta['video_id']}"
-                }
-            )
-            self.vectorstore.add_documents([doc])
-            logger.info(f"🧠 Stored in FAISS: {pattern} from {meta['video_id']}")
+    def save_pattern_signal(self, video_id: str, transcript: str, patterns: list):
+        yt_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # Upload to S3
-            signal = {
-                "id": str(uuid.uuid4()),
-                "source": "youtube",
-                "pattern": pattern,
-                "title": meta["title"],
-                "channel": meta["channel"],
-                "video_id": meta["video_id"],
-                "source_url": f"https://www.youtube.com/watch?v={meta['video_id']}",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
-            }
-            upload_signal_to_s3(signal, prefix="youtube")
+        data = {
+            "id": str(uuid.uuid4()),
+            "source": "youtube",
+            "pattern": patterns[0],  # Optional: store only first match
+            "title": "N/A",
+            "channel": "N/A",
+            "video_id": video_id,
+            "source_url": yt_url,
+            "timestamp": str(json.loads(json.dumps({"now": str(uuid.uuid1().time)}))["now"])
+        }
 
-    def ingest_playlist(self, playlist_url: str, max_videos: int = 20):
-        logger.info(f"📺 Ingesting playlist: {playlist_url}")
+        upload_signal_to_s3(data, prefix="youtube")
+        logger.info(f"✅ Uploaded signal: {data}")
+
+    def ingest_playlist(self, playlist_id: str, max_videos: int = 20):
+        logger.info(f"📥 Ingesting playlist: {playlist_id}")
         try:
-            video_urls = crawl_playlist(playlist_url)
-            for url in video_urls[:max_videos]:
-                self.ingest_video(url)
+            video_ids = get_playlist_videos(playlist_id)[:max_videos]
+            for vid in video_ids:
+                self.ingest_clip(vid)
         except Exception as e:
             logger.error(f"❌ Failed playlist ingest: {e}")
 
     def ingest_channel(self, channel_id: str, max_videos: int = 20):
-        logger.info(f"📡 Ingesting channel uploads: {channel_id}")
+        logger.info(f"📥 Ingesting channel uploads: {channel_id}")
         try:
-            video_urls = crawl_channel_uploads(channel_id, max_videos)
-            for url in video_urls:
-                self.ingest_video(url)
+            video_ids = get_channel_uploads(channel_id)[:max_videos]
+            for vid in video_ids:
+                self.ingest_clip(vid)
         except Exception as e:
             logger.error(f"❌ Failed channel ingest: {e}")
 
 
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
-    # agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
-    agent.ingest_channel("UCGL9ubdGcvZh_dvSV2z1hoQ")  # The Trading Channel
+    # Replace with your actual playlist or channel
+    agent.ingest_channel("UCcbLgUBpGcvZh_dSv21VhoQ")  # Example channel
+    logger.info(f"✅ Done. Signals processed: {agent.processed}, failed: {agent.failed}")
+
 
