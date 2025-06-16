@@ -1,6 +1,7 @@
 # quanta/ingest/youtube_transcript_utils.py
 
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+from urllib.error import HTTPError
 import tempfile
 import subprocess
 import os
@@ -12,39 +13,42 @@ whisper_model = WhisperModel("medium", compute_type="int8")
 
 
 def extract_transcript(video_id: str) -> str:
-    print(f"📼 Attempting transcript for video ID: {video_id}")
+    print(f"\n📼 Attempting transcript for video ID: {video_id}")
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         texts = [line['text'] for line in transcript_list if 'text' in line]
+
         if not texts:
-            print("⚠️ YouTube captions were empty, using Whisper fallback.")
+            print("⚠️ YouTube captions were empty — falling back to Whisper.")
             return transcribe_audio_with_whisper(video_id)
 
         print(f"✅ Captions retrieved: {len(texts)} lines")
         return "\n".join(texts)
 
-    except (NoTranscriptFound, TranscriptsDisabled):
-        print("🟠 No captions found — falling back to Whisper STT.")
+    except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
+        print(f"🟠 Captions not available: {type(e).__name__} – {e}")
+        traceback.print_exc()
         return transcribe_audio_with_whisper(video_id)
 
     except Exception as e:
-        print(f"❌ Error during YouTubeTranscriptApi.get_transcript: {e}")
+        print(f"❌ Unhandled error in transcript extraction: {e}")
         traceback.print_exc()
-        print("🟠 Falling back to Whisper STT.")
         return transcribe_audio_with_whisper(video_id)
 
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
-    print("🛠️ Using Whisper fallback...")
+    print("🛠️ Whisper fallback engaged...")
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
     try:
         yt = YouTube(yt_url)
         stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
+
         if not stream:
             raise Exception("❌ No downloadable video stream found.")
+
     except Exception as e:
-        print(f"❌ Failed to load YouTube video: {e}")
+        print(f"❌ Failed to load YouTube stream: {e}")
         traceback.print_exc()
         return ""
 
@@ -58,9 +62,9 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
 
             if not os.path.exists(input_path):
                 raise Exception("❌ Video file not downloaded.")
-            print(f"📥 Video size: {os.path.getsize(input_path)} bytes")
+            print(f"📥 Downloaded video size: {os.path.getsize(input_path)} bytes")
 
-            print("🔄 Converting video to WAV format...")
+            print("🎛️ Converting to WAV (mono, 16kHz)...")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", output_path],
                 stdout=subprocess.PIPE,
@@ -72,14 +76,15 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 print(result.stderr.decode())
                 return ""
 
-            print(f"📤 WAV file size: {os.path.getsize(output_path)} bytes")
+            print(f"📤 Converted WAV size: {os.path.getsize(output_path)} bytes")
+
         except Exception as e:
             print(f"❌ Error during audio processing: {e}")
             traceback.print_exc()
             return ""
 
         try:
-            print("🧠 Transcribing audio with Whisper...")
+            print("🧠 Transcribing with Whisper...")
             segments = whisper_model.transcribe(output_path)
 
             if not isinstance(segments, dict) or 'segments' not in segments or not segments['segments']:
@@ -88,14 +93,14 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
 
             texts = [seg['text'] for seg in segments['segments'] if 'text' in seg]
             if not texts:
-                print("⚠️ Whisper returned empty transcript.")
+                print("⚠️ Whisper returned an empty transcript.")
                 return ""
 
-            print(f"✅ Transcribed {len(texts)} segments.")
+            print(f"✅ Whisper transcribed {len(texts)} segments.")
             return "\n".join(texts)
 
         except Exception as e:
-            print(f"❌ Whisper transcription failed: {e}")
+            print(f"❌ Whisper transcription error: {e}")
             traceback.print_exc()
             return ""
 
