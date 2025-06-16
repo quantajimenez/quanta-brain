@@ -1,5 +1,3 @@
-# quanta/ingest/youtube_transcript_utils.py
-
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from urllib.error import HTTPError
 import tempfile
@@ -40,15 +38,16 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
     print("🛠️ Whisper fallback engaged...")
 
     yt_url = f"https://www.youtube.com/watch?v={video_id}"
+    print(f"🔗 Attempting to load stream from: {yt_url}")
+
     try:
         yt = YouTube(yt_url)
         stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
 
         if not stream:
             raise Exception("❌ No downloadable video stream found.")
-
     except Exception as e:
-        print(f"❌ Failed to load YouTube stream: {e}")
+        print(f"❌ Failed to load YouTube stream or stream data: {e}")
         traceback.print_exc()
         return ""
 
@@ -64,7 +63,7 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 raise Exception("❌ Video file not downloaded.")
             print(f"📥 Downloaded video size: {os.path.getsize(input_path)} bytes")
 
-            print("🎛️ Converting to WAV (mono, 16kHz)...")
+            print("🎛️ Converting video to WAV (mono, 16kHz)...")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", output_path],
                 stdout=subprocess.PIPE,
