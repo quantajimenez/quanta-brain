@@ -111,5 +111,5 @@ class YouTubePatternAgent:
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
     # agent.ingest_playlist("https://www.youtube.com/playlist?list=PLKE_22Jx497twaT62Qv9DAiagynP4dAYV")
-    agent.ingest_channel("UCnqZ2hx679DqRi6khRUNw2g")  # The Trading Channel
+    agent.ingest_channel("UCGL9ubdGcvZh_dvSV2z1hoQ")  # The Trading Channel
 
