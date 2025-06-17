@@ -12,6 +12,11 @@ from faster_whisper import WhisperModel
 whisper_model = WhisperModel("medium", compute_type="int8")
 
 
+from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+from urllib.error import HTTPError
+import traceback
+import xml.etree.ElementTree as ET
+
 def extract_transcript(video_id: str) -> str:
     print(f"\n📼 Attempting transcript for video ID: {video_id}")
     try:
@@ -26,17 +31,18 @@ def extract_transcript(video_id: str) -> str:
         return "\n".join(texts)
 
     except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
-        print(f"🟠 Captions not available: {type(e).__name__} – {e}")
+        print(f"🟠 No transcript available: {type(e).__name__} – {e}")
         return transcribe_audio_with_whisper(video_id)
 
-    except ElementTree.ParseError as e:
-        print(f"❌ Transcript API XML parse error: {e}")
+    except ET.ParseError as e:
+        print(f"❌ Transcript API returned malformed XML: {e}")
         return transcribe_audio_with_whisper(video_id)
 
     except Exception as e:
         print(f"❌ Unhandled error in transcript extraction: {e}")
         traceback.print_exc()
         return transcribe_audio_with_whisper(video_id)
+
 
 
 
