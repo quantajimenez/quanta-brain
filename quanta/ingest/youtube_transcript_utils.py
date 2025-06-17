@@ -64,7 +64,7 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 ydl.download([video_url])
 
             # Find the .mp4 file
-            downloaded = next((f for f in os.listdir(tmpdir) if f.endswith((".mp4", ".mkv", ".webm")), None)
+            downloaded = next((f for f in os.listdir(tmpdir) if f.endswith((".mp4", ".mkv", ".webm")) None)
             if not downloaded:
                 raise FileNotFoundError("❌ yt_dlp did not produce a .mp4")
 
