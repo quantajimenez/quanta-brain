@@ -1,37 +1,34 @@
-# quanta/ingest/youtube_transcript_utils.py
+import os
+import json
+import traceback
+import tempfile
+import subprocess
+import yt_dlp
+import xml.etree.ElementTree as ET
 
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from urllib.error import HTTPError
-import tempfile
-import subprocess
-import os
-import traceback
-from pytube import YouTube
 from faster_whisper import WhisperModel
 
+# Whisper model config
 whisper_model = WhisperModel("medium", compute_type="int8")
 
 
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
-from urllib.error import HTTPError
-import traceback
-import xml.etree.ElementTree as ET
-
 def extract_transcript(video_id: str) -> str:
-    print(f"\n📼 Attempting transcript for video ID: {video_id}")
+    print(f"\n🎬 Attempting transcript for video ID: {video_id}")
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
         texts = [line['text'] for line in transcript_list if 'text' in line]
 
         if not texts:
-            print("⚠️ Captions are empty — using Whisper fallback.")
+            print("⚠️ Transcript API returned empty captions — using Whisper fallback.")
             return transcribe_audio_with_whisper(video_id)
 
         print(f"✅ Captions retrieved: {len(texts)} lines")
         return "\n".join(texts)
 
     except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
-        print(f"🟠 No transcript available: {type(e).__name__} – {e}")
+        print(f"🟠 No transcript available ({type(e).__name__}): {e}")
         return transcribe_audio_with_whisper(video_id)
 
     except ET.ParseError as e:
@@ -44,33 +41,21 @@ def extract_transcript(video_id: str) -> str:
         return transcribe_audio_with_whisper(video_id)
 
 
-
-
-import yt_dlp
-import tempfile
-import subprocess
-import os
-import traceback
-from faster_whisper import WhisperModel
-
-whisper_model = WhisperModel("medium", compute_type="int8")
-
 def transcribe_audio_with_whisper(video_id: str) -> str:
     print("🛠️ Whisper fallback engaged via yt_dlp...")
 
     video_url = f"https://www.youtube.com/watch?v={video_id}"
-    print(f"🎥 Downloading from: {video_url}")
+    print(f"🔗 Downloading from: {video_url}")
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = os.path.join(tmpdir, "input.%(ext)s")
-            final_mp4 = os.path.join(tmpdir, "input.mp4")
+            output_template = os.path.join(tmpdir, "input.%(ext)s")
             wav_path = os.path.join(tmpdir, "converted.wav")
 
-            # Download video
+            # Download .mp4 using yt_dlp
             ydl_opts = {
                 "format": "bestvideo+bestaudio/best",
-                "outtmpl": output_path,
+                "outtmpl": output_template,
                 "merge_output_format": "mp4",
                 "quiet": True,
             }
@@ -78,10 +63,10 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
 
-            # Ensure file exists
+            # Find the downloaded .mp4 file
             downloaded = next((f for f in os.listdir(tmpdir) if f.endswith(".mp4")), None)
             if not downloaded:
-                raise FileNotFoundError("❌ yt_dlp did not download a valid .mp4 file.")
+                raise FileNotFoundError("❌ yt_dlp failed to download a .mp4 file")
 
             input_path = os.path.join(tmpdir, downloaded)
             print(f"📥 Downloaded video: {input_path}")
@@ -93,11 +78,12 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
+
             if result.returncode != 0:
                 raise RuntimeError("❌ ffmpeg conversion failed.")
 
             print("🧠 Transcribing with Whisper...")
-            segments = whisper_model.transcribe(wav_path)
+            segments = whisper_model.transcribe(wav_path, beam_size=5, best_of=5)
 
             if not isinstance(segments, dict) or 'segments' not in segments or not segments['segments']:
                 print("❌ Whisper returned no valid segments.")
