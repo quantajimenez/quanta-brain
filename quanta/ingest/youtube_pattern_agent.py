@@ -93,7 +93,7 @@ class YouTubePatternAgent:
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
     # Replace with your actual playlist or channel
-    agent.ingest_clip("rUWxSEwctFU")  # Google Developers – clean speech
+    agent.ingest_clip("rUWxSEwctFU")
     logger.info(f"✅ Done. Signals processed: {agent.processed}, failed: {agent.failed}")
 
 
