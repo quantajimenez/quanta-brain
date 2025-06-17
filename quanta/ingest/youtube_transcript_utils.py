@@ -94,7 +94,6 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             # Transcribe
             print("🧠 Transcribing with Whisper...")
             segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-            segments = list(segments)
             print(json.dumps(segments, indent=2, ensure_ascii=False))  # You’ll see if any segments were found
 
             if not isinstance(segments, dict) or 'segments' not in segments or not segments['segments']:
