@@ -46,60 +46,61 @@ def extract_transcript(video_id: str) -> str:
 
 
 
-def transcribe_audio_with_whisper(video_id: str) -> str:
-    print("🛠️ Whisper fallback engaged...")
+import yt_dlp
+import tempfile
+import subprocess
+import os
+import traceback
+from faster_whisper import WhisperModel
 
-    yt_url = f"https://www.youtube.com/watch?v={video_id}"
-    print(f"🔗 Attempting to load stream from: {yt_url}")
+whisper_model = WhisperModel("medium", compute_type="int8")
+
+def transcribe_audio_with_whisper(video_id: str) -> str:
+    print("🛠️ Whisper fallback engaged via yt_dlp...")
+
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    print(f"🎥 Downloading from: {video_url}")
 
     try:
-        yt = YouTube(yt_url)
-        stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = os.path.join(tmpdir, "input.%(ext)s")
+            final_mp4 = os.path.join(tmpdir, "input.mp4")
+            wav_path = os.path.join(tmpdir, "converted.wav")
 
-        if not stream:
-            raise Exception("❌ No downloadable video stream found.")
-    except Exception as e:
-        print(f"❌ Failed to load YouTube stream or stream data: {e}")
-        traceback.print_exc()
-        return ""
+            # Download video
+            ydl_opts = {
+                "format": "bestvideo+bestaudio/best",
+                "outtmpl": output_path,
+                "merge_output_format": "mp4",
+                "quiet": True,
+            }
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        input_path = os.path.join(tmpdir, "input.mp4")
-        output_path = os.path.join(tmpdir, "converted.wav")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([video_url])
 
-        try:
-            print(f"⬇️ Downloading stream: {stream.default_filename}")
-            stream.download(filename=input_path)
+            # Ensure file exists
+            downloaded = next((f for f in os.listdir(tmpdir) if f.endswith(".mp4")), None)
+            if not downloaded:
+                raise FileNotFoundError("❌ yt_dlp did not download a valid .mp4 file.")
 
-            if not os.path.exists(input_path):
-                raise Exception("❌ Video file not downloaded.")
-            print(f"📥 Downloaded video size: {os.path.getsize(input_path)} bytes")
+            input_path = os.path.join(tmpdir, downloaded)
+            print(f"📥 Downloaded video: {input_path}")
 
-            print("🎛️ Converting video to WAV (mono, 16kHz)...")
+            # Convert to WAV
+            print("🎛️ Converting video to WAV...")
             result = subprocess.run(
-                ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", output_path],
+                ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", wav_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
-
             if result.returncode != 0:
-                print("❌ ffmpeg conversion failed:")
-                print(result.stderr.decode())
-                return ""
+                raise RuntimeError("❌ ffmpeg conversion failed.")
 
-            print(f"📤 Converted WAV size: {os.path.getsize(output_path)} bytes")
-
-        except Exception as e:
-            print(f"❌ Error during audio processing: {e}")
-            traceback.print_exc()
-            return ""
-
-        try:
             print("🧠 Transcribing with Whisper...")
-            segments = whisper_model.transcribe(output_path)
+            segments = whisper_model.transcribe(wav_path)
 
             if not isinstance(segments, dict) or 'segments' not in segments or not segments['segments']:
-                print("❌ Whisper returned no valid transcription segments.")
+                print("❌ Whisper returned no valid segments.")
                 return ""
 
             texts = [seg['text'] for seg in segments['segments'] if 'text' in seg]
@@ -107,11 +108,11 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 print("⚠️ Whisper returned an empty transcript.")
                 return ""
 
-            print(f"✅ Whisper transcribed {len(texts)} segments.")
+            print(f"✅ Transcribed {len(texts)} segments.")
             return "\n".join(texts)
 
-        except Exception as e:
-            print(f"❌ Whisper transcription error: {e}")
-            traceback.print_exc()
-            return ""
+    except Exception as e:
+        print(f"❌ Whisper fallback failed: {e}")
+        traceback.print_exc()
+        return ""
 
