@@ -93,9 +93,12 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
 
             # Transcribe
             print("🧠 Transcribing with Whisper...")
-            segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-            print(json.dumps(segments, indent=2, ensure_ascii=False))  # Optional debug print
+            segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))  # ✅ REQUIRED
             
+            # Debug print
+            print(json.dumps(segments, indent=2, ensure_ascii=False))
+            
+            # Exit early if Whisper gave us nothing
             if not segments:
                 print("❌ Whisper returned no valid segments.")
                 return ""
@@ -104,9 +107,10 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             if not texts:
                 print("⚠️ Whisper returned an empty transcript.")
                 return ""
-            
-            print(f"✅ Transcribed {len(texts)} segments.")
-            return "\n".join(texts)
+
+print(f"✅ Transcribed {len(texts)} segments.")
+return "\n".join(texts)
+
 
 
     except Exception as e:
