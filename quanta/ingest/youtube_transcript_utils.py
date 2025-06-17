@@ -19,7 +19,7 @@ def extract_transcript(video_id: str) -> str:
         texts = [line['text'] for line in transcript_list if 'text' in line]
 
         if not texts:
-            print("⚠️ YouTube captions were empty — falling back to Whisper.")
+            print("⚠️ Captions are empty — using Whisper fallback.")
             return transcribe_audio_with_whisper(video_id)
 
         print(f"✅ Captions retrieved: {len(texts)} lines")
@@ -27,13 +27,17 @@ def extract_transcript(video_id: str) -> str:
 
     except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
         print(f"🟠 Captions not available: {type(e).__name__} – {e}")
-        traceback.print_exc()
+        return transcribe_audio_with_whisper(video_id)
+
+    except ElementTree.ParseError as e:
+        print(f"❌ Transcript API XML parse error: {e}")
         return transcribe_audio_with_whisper(video_id)
 
     except Exception as e:
         print(f"❌ Unhandled error in transcript extraction: {e}")
         traceback.print_exc()
         return transcribe_audio_with_whisper(video_id)
+
 
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
