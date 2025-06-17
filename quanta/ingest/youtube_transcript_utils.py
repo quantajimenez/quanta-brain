@@ -94,19 +94,20 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             # Transcribe
             print("🧠 Transcribing with Whisper...")
             segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-            print(json.dumps(segments, indent=2, ensure_ascii=False))  # You’ll see if any segments were found
-
-            if not isinstance(segments, dict) or 'segments' not in segments or not segments['segments']:
+            print(json.dumps(segments, indent=2, ensure_ascii=False))  # Optional debug print
+            
+            if not segments:
                 print("❌ Whisper returned no valid segments.")
                 return ""
-
-            texts = [seg['text'] for seg in segments['segments'] if 'text' in seg]
+            
+            texts = [seg['text'] for seg in segments if 'text' in seg]
             if not texts:
                 print("⚠️ Whisper returned an empty transcript.")
                 return ""
-
+            
             print(f"✅ Transcribed {len(texts)} segments.")
             return "\n".join(texts)
+
 
     except Exception as e:
         print(f"❌ Whisper fallback failed: {e}")
