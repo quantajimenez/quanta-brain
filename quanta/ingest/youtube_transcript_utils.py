@@ -93,17 +93,17 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             try:
                 print("🧠 Transcribing with Whisper...")
                 segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-                # Make segments JSON-serializable
                 serializable_segments = []
                 for seg in segments:
                     if hasattr(seg, "_asdict"):
-                        serializable_segments.append(seg._asdict())  # NamedTuple support
+                        serializable_segments.append(seg._asdict())
                     elif isinstance(seg, dict):
-                        serializable_segments.append(seg)  # Already a dict
+                        serializable_segments.append(seg)
                     else:
-                        serializable_segments.append(vars(seg))  # Fallback: extract fields from object
-
+                        serializable_segments.append({"text": str(seg)})
+                
                 print(json.dumps(serializable_segments, indent=2, ensure_ascii=False))
+
 
 
                 if not segments:
