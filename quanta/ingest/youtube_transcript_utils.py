@@ -10,7 +10,7 @@ from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, Tran
 from urllib.error import HTTPError
 from faster_whisper import WhisperModel
 
-# Whisper model config
+# Load Whisper model
 whisper_model = WhisperModel("medium", compute_type="int8")
 
 
@@ -21,14 +21,14 @@ def extract_transcript(video_id: str) -> str:
         texts = [line['text'] for line in transcript_list if 'text' in line]
 
         if not texts:
-            print("⚠️ Transcript API returned empty captions — using Whisper fallback.")
+            print("⚠️ Captions are empty — using Whisper fallback.")
             return transcribe_audio_with_whisper(video_id)
 
         print(f"✅ Captions retrieved: {len(texts)} lines")
         return "\n".join(texts)
 
     except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
-        print(f"🟠 No transcript available ({type(e).__name__}): {e}")
+        print(f"🟠 Transcript unavailable: {type(e).__name__} – {e}")
         return transcribe_audio_with_whisper(video_id)
 
     except ET.ParseError as e:
@@ -52,21 +52,21 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             output_template = os.path.join(tmpdir, "input.%(ext)s")
             wav_path = os.path.join(tmpdir, "converted.wav")
 
-            # Download .mp4 using yt_dlp
+            # Download using yt_dlp
             ydl_opts = {
-                "format": "bestvideo+bestaudio/best",
+                "format": "bestaudio/best",
                 "outtmpl": output_template,
-                "merge_output_format": "mp4",
                 "quiet": True,
+                "merge_output_format": "mp4",
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
 
-            # Find the downloaded .mp4 file
+            # Find the .mp4 file
             downloaded = next((f for f in os.listdir(tmpdir) if f.endswith(".mp4")), None)
             if not downloaded:
-                raise FileNotFoundError("❌ yt_dlp failed to download a .mp4 file")
+                raise FileNotFoundError("❌ yt_dlp did not produce a .mp4")
 
             input_path = os.path.join(tmpdir, downloaded)
             print(f"📥 Downloaded video: {input_path}")
@@ -82,6 +82,16 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             if result.returncode != 0:
                 raise RuntimeError("❌ ffmpeg conversion failed.")
 
+            if not os.path.exists(wav_path):
+                raise RuntimeError("⚠️ WAV file was not created by ffmpeg.")
+
+            wav_size = os.path.getsize(wav_path)
+            print(f"📦 WAV file size: {wav_size} bytes")
+            if wav_size < 10_000:
+                print("⚠️ WAV file is suspiciously small — likely no usable audio.")
+                return ""
+
+            # Transcribe
             print("🧠 Transcribing with Whisper...")
             segments = whisper_model.transcribe(wav_path, beam_size=5, best_of=5)
 
