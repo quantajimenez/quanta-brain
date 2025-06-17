@@ -93,7 +93,9 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
             try:
                 print("🧠 Transcribing with Whisper...")
                 segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-                print(json.dumps(segments, indent=2, ensure_ascii=False))  # Optional debug
+                serializable_segments = [dict(seg) for seg in segments]
+                print(json.dumps(serializable_segments, indent=2, ensure_ascii=False))
+
 
                 if not segments:
                     print("❌ Whisper returned no valid segments.")
