@@ -62,8 +62,7 @@ def transcribe_audio_with_whisper(video_id: str) -> str:
                 ydl.download([video_url])
 
             # Accept any audio container format
-            downloaded = next((f for f in os.listdir(tmpdir)
-                               if f.endswith((".mp4", ".webm", ".mkv")), None), None)
+            downloaded = next((f for f in os.listdir(tmpdir) if f.endswith((".mp4", ".webm", ".mkv"))), None)
 
             if not downloaded:
                 raise FileNotFoundError("❌ yt_dlp did not produce a usable audio file.")
