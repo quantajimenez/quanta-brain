@@ -1,99 +1,108 @@
-# quanta/ingest/youtube_pattern_agent.py
-
 import os
-import uuid
-import json
+import subprocess
+import tempfile
 import traceback
+import json
+import re
+from datetime import datetime as dt
 
-from quanta.utils.logger import setup_logger
-from quanta.utils.s3_uploader import upload_signal_to_s3
-from quanta.ingest.youtube_transcript_utils import extract_transcript
-from quanta.ingest.youtube_scraper import get_playlist_videos, get_channel_uploads
+from youtube_transcript_api import YouTubeTranscriptApi, TranscriptUnavailable, NoTranscriptFound
+from rich.console import Console
+from rich import print
 
-logger = setup_logger("youtubePatternAgent")
+console = Console()
+whisper_model = whisper.load_model("medium", compute_type="int8")
 
-# Sample pattern keywords
-PATTERN_KEYWORDS = [
-    "breakout", "double bottom", "head and shoulders", "inverse head and shoulders",
-    "cup and handle", "support", "resistance",
-    "bullish", "bearish", "momentum", "volume", "reversal"
-]
+def extract_transcript(video_id: str) -> str:
+    print(f"📼 Attempting transcript for video ID: {video_id}")
+    try:
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+        texts = [seg['text'] for seg in transcript_list if 'text' in seg]
+        if not texts:
+            print("⚠️ Transcript API empty — using Whisper fallback.")
+            raise TranscriptUnavailable(video_id)
+        print("📜 Captions preview:", list(texts)[:5])
+        return "\n".join(texts)
+    except (NoTranscriptFound, TranscriptUnavailable) as e:
+        print(f"❌ Transcript API failed: {e}")
+        raise e  # allow fallback
 
+def download_audio(video_id: str, tmpdir: str) -> str:
+    print(f"🔌 Downloading video for Whisper: {video_id}")
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(tmpdir, 'input.%(ext)s'),
+        'quiet': True,
+    }
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+    input_path = next((f for f in os.listdir(tmpdir) if f.endswith((".mp4", ".webm", ".mkv"))), None)
+    if not input_path:
+        raise FileNotFoundError("❌ yt_dlp did not produce a usable audio file.")
+    input_path = os.path.join(tmpdir, input_path)
+    print(f"📥 Downloaded video: {input_path}")
+    return input_path
 
-class YouTubePatternAgent:
-    def __init__(self):
-        self.logger = logger
-        self.processed = 0
-        self.failed = 0
+def convert_to_wav(input_path: str, tmpdir: str) -> str:
+    wav_path = os.path.join(tmpdir, "converted.wav")
+    print("🔄 Converting video to WAV...")
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", wav_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    if result.returncode != 0:
+        raise RuntimeError("❌ ffmpeg conversion failed.")
+    if not os.path.exists(wav_path):
+        raise RuntimeError("⚠️ WAV file was not created by ffmpeg.")
+    wav_size = os.path.getsize(wav_path)
+    print(f"📏 WAV file size: {wav_size} bytes")
+    if wav_size < 10_000:
+        print("⚠️ WAV file is suspiciously small — likely no usable audio.")
+        return ""
+    return wav_path
 
-    def ingest_clip(self, video_id: str):
+def transcribe_audio_with_whisper(video_id: str) -> str:
+    with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            transcript = extract_transcript(video_id)
-            if not transcript or transcript.strip() == "":
-                logger.warning(f"⚠️ Transcript blank, skipping video: {video_id}")
-                self.failed += 1
-                return
-
-            patterns = self.extract_patterns(transcript)
-            if not patterns:
-                logger.info(f"ℹ️ No patterns found in video: {video_id}")
-                return
-
-            self.save_pattern_signal(video_id, transcript, patterns)
-            self.processed += 1
-
+            input_path = download_audio(video_id, tmpdir)
+            wav_path = convert_to_wav(input_path, tmpdir)
+            if not wav_path:
+                return ""
+            print("🧠 Transcribing with Whisper...")
+            segments = whisper_model.transcribe(wav_path, beam_size=5, best_of=5)
+            print(json.dumps(segments, indent=2, ensure_ascii=False))  # full debug
+            if not segments or 'segments' not in segments or not segments['segments']:
+                print("❌ Whisper returned no valid segments.")
+                return ""
+            texts = [seg['text'] for seg in segments['segments'] if 'text' in seg]
+            if not texts:
+                print("⚠️ Whisper returned an empty transcript.")
+                return ""
+            print(f"✅ Transcribed {len(texts)} segments.")
+            print("\n".join(texts[:5]))  # optional preview
+            return "\n".join(texts)
         except Exception as e:
-            logger.error(f"❌ Failed to ingest video {video_id}: {e}")
+            print(f"❌ Whisper fallback failed: {e}")
             traceback.print_exc()
-            self.failed += 1
+            return ""
 
-    def extract_patterns(self, transcript: str):
-        found = []
-        for word in PATTERN_KEYWORDS:
-            if word.lower() in transcript.lower():
-                found.append(word)
-        return list(set(found))
+def extract_transcript_fallback(video_id: str) -> str:
+    try:
+        return extract_transcript(video_id)
+    except:
+        return transcribe_audio_with_whisper(video_id)
 
-    def save_pattern_signal(self, video_id: str, transcript: str, patterns: list):
-        yt_url = f"https://www.youtube.com/watch?v={video_id}"
-
-        data = {
-            "id": str(uuid.uuid4()),
-            "source": "youtube",
-            "pattern": patterns[0],  # Optional: store only first match
-            "title": "N/A",
-            "channel": "N/A",
-            "video_id": video_id,
-            "source_url": yt_url,
-            "timestamp": str(json.loads(json.dumps({"now": str(uuid.uuid1().time)}))["now"])
-        }
-
-        upload_signal_to_s3(data, prefix="youtube")
-        logger.info(f"✅ Uploaded signal: {data}")
-
-    def ingest_playlist(self, playlist_id: str, max_videos: int = 20):
-        logger.info(f"📥 Ingesting playlist: {playlist_id}")
-        try:
-            video_ids = get_playlist_videos(playlist_id)[:max_videos]
-            for vid in video_ids:
-                self.ingest_clip(vid)
-        except Exception as e:
-            logger.error(f"❌ Failed playlist ingest: {e}")
-
-    def ingest_channel(self, channel_id: str, max_videos: int = 20):
-        logger.info(f"📥 Ingesting channel uploads: {channel_id}")
-        try:
-            video_ids = get_channel_uploads(channel_id)[:max_videos]
-            for vid in video_ids:
-                self.ingest_clip(vid)
-        except Exception as e:
-            logger.error(f"❌ Failed channel ingest: {e}")
-
-
-if __name__ == "__main__":
-    agent = YouTubePatternAgent()
-    # Replace with your actual playlist or channel
-    agent.ingest_clip("eynxyoKgpng")
-    logger.info(f"✅ Done. Signals processed: {agent.processed}, failed: {agent.failed}")
+# 🔍 Optional fuzzy keyword matcher placeholder for downstream use:
+def contains_pattern(text: str) -> bool:
+    text = text.lower()
+    patterns = [
+        ("macd", "crossover"),
+        ("rsi", "oversold"),
+        ("bollinger", "break"),
+        ("moving average", "cross"),
+        ("head", "shoulders"),
+    ]
+    return any(all(keyword in text for keyword in pattern) for pattern in patterns)
 
 
