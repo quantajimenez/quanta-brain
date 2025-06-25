@@ -1,130 +1,106 @@
 import os
 import json
+import shutil
 import traceback
-import tempfile
 import subprocess
-import yt_dlp
-import xml.etree.ElementTree as ET
+from tempfile import TemporaryDirectory
+from yt_dlp import YoutubeDL
 
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
-from urllib.error import HTTPError
+from youtube_transcript_api import YouTubeTranscriptApi
 from faster_whisper import WhisperModel
+from rich import print
 
 whisper_model = WhisperModel("medium", compute_type="int8")
 
-
 def extract_transcript(video_id: str) -> str:
-    print(f"\n🎬 Attempting transcript for video ID: {video_id}")
+    print(f"📄 Attempting transcript for video ID: {video_id}")
     try:
         transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-        texts = [line['text'] for line in transcript_list if 'text' in line]
-
+        texts = [line["text"] for line in transcript_list if "text" in line]
         if not texts:
             print("⚠️ Captions are empty — using Whisper fallback.")
             return transcribe_audio_with_whisper(video_id)
-
-        print(f"✅ Captions retrieved: {len(texts)} lines")
+        print("🟢 Captions retrieved.")
         return "\n".join(texts)
-
-    except (NoTranscriptFound, TranscriptsDisabled, HTTPError) as e:
-        print(f"🟠 Transcript unavailable: {type(e).__name__} – {e}")
-        return transcribe_audio_with_whisper(video_id)
-
-    except ET.ParseError as e:
-        print(f"❌ Transcript API returned malformed XML: {e}")
-        return transcribe_audio_with_whisper(video_id)
-
     except Exception as e:
-        print(f"❌ Unhandled error in transcript extraction: {e}")
-        traceback.print_exc()
+        print(f"⚠️ Transcript API failed: ({e})")
         return transcribe_audio_with_whisper(video_id)
-
 
 def transcribe_audio_with_whisper(video_id: str) -> str:
-    print("🛠️ Whisper fallback engaged via yt_dlp...")
-    video_url = f"https://www.youtube.com/watch?v={video_id}"
-    print(f"🔗 Downloading from: {video_url}")
-
     try:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_template = os.path.join(tmpdir, "input.%(ext)s")
-            wav_path = os.path.join(tmpdir, "converted.wav")
-
-            # Download audio
+        with TemporaryDirectory() as tmpdir:
+            print(f"📥 Downloading video for Whisper: {video_id}")
             ydl_opts = {
                 "format": "bestaudio/best",
-                "outtmpl": output_template,
+                "outtmpl": os.path.join(tmpdir, "input.%(ext)s"),
                 "quiet": True,
-                "merge_output_format": "mp4",
+                "no_warnings": True,
+                "noplaylist": True,
+                "extractaudio": True,
+                "audioformat": "wav"
             }
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([video_url])
+            with YoutubeDL(ydl_opts) as ydl:
+                ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
 
-            # Accept any audio container format
             downloaded = next((f for f in os.listdir(tmpdir) if f.endswith((".mp4", ".webm", ".mkv"))), None)
-
             if not downloaded:
                 raise FileNotFoundError("❌ yt_dlp did not produce a usable audio file.")
 
             input_path = os.path.join(tmpdir, downloaded)
-            print(f"📥 Downloaded video: {input_path}")
+            print(f"📦 Downloaded video: {input_path}")
 
             # Convert to WAV
-            print("🎛️ Converting video to WAV...")
+            wav_path = os.path.join(tmpdir, "output.wav")
+            print("🔄 Converting video to WAV...")
             result = subprocess.run(
                 ["ffmpeg", "-y", "-i", input_path, "-ar", "16000", "-ac", "1", wav_path],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
             )
 
             if result.returncode != 0:
                 raise RuntimeError("❌ ffmpeg conversion failed.")
+
             if not os.path.exists(wav_path):
                 raise RuntimeError("⚠️ WAV file was not created by ffmpeg.")
 
             wav_size = os.path.getsize(wav_path)
-            print(f"📦 WAV file size: {wav_size} bytes")
+            print(f"📏 WAV file size: {wav_size} bytes")
             if wav_size < 10_000:
                 print("⚠️ WAV file is suspiciously small — likely no usable audio.")
                 return ""
 
-            # Transcribe with Whisper
-            try:
-                print("🧠 Transcribing with Whisper...")
-                segments = list(whisper_model.transcribe(wav_path, beam_size=5, best_of=5))
-                serializable_segments = []
-                for seg in segments:
-                    if hasattr(seg, "_asdict"):
-                        serializable_segments.append(seg._asdict())
-                    elif isinstance(seg, dict):
-                        serializable_segments.append(seg)
-                    else:
-                        serializable_segments.append({"text": str(seg)})
-                
-                print(json.dumps(serializable_segments, indent=2, ensure_ascii=False))
+            # Transcribe
+            print("🧠 Transcribing with Whisper...")
+            segments_raw = whisper_model.transcribe(wav_path, beam_size=5, best_of=5)
+            segments_raw = list(segments_raw)
 
+            serializable_segments = []
+            for s in segments_raw:
+                if hasattr(s, "_asdict"):
+                    serializable_segments.append(s._asdict())
+                elif isinstance(s, dict):
+                    serializable_segments.append(s)
+                else:
+                    serializable_segments.append({"text": str(s)})
 
+            print(json.dumps(serializable_segments, indent=2, ensure_ascii=False))  # Optional debug print
 
-                if not segments:
-                    print("❌ Whisper returned no valid segments.")
-                    return ""
-
-                texts = [seg['text'] for seg in segments if 'text' in seg]
-                if not texts:
-                    print("⚠️ Whisper returned an empty transcript.")
-                    return ""
-
-                print(f"✅ Transcribed {len(texts)} segments.")
-                return "\n".join(texts)
-
-            except Exception as e:
-                print(f"❌ Whisper fallback failed: {e}")
-                traceback.print_exc()
+            if not serializable_segments:
+                print("❌ Whisper returned no valid segments.")
                 return ""
 
+            texts = [seg["text"] for seg in serializable_segments if "text" in seg]
+            if not texts:
+                print("⚠️ Whisper returned an empty transcript.")
+                return ""
+
+            print(f"✅ Transcribed {len(texts)} segments.")
+            return "\n".join(texts)
+
     except Exception as e:
-        print(f"❌ Whisper processing failed: {e}")
+        print(f"❌ Whisper fallback failed: ({e})")
         traceback.print_exc()
         return ""
 
