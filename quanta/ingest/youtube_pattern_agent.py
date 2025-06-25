@@ -14,8 +14,7 @@ from rich import print
 import whisper
 
 console = Console()
-whisper_model = whisper.load_model("medium", compute_type="int8")
-
+whisper_model = whisper.load_model("medium")
 
 def extract_transcript(video_id: str) -> str:
     print(f"🎯 Attempting transcript for video ID: {video_id}")
