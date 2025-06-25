@@ -93,7 +93,7 @@ class YouTubePatternAgent:
 if __name__ == "__main__":
     agent = YouTubePatternAgent()
     # Replace with your actual playlist or channel
-    agent.ingest_clip("vbM2R2CM96Q")
+    agent.ingest_clip("eynxyoKgpng")
     logger.info(f"✅ Done. Signals processed: {agent.processed}, failed: {agent.failed}")
 
 
