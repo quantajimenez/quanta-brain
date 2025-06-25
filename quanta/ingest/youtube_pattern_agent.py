@@ -6,7 +6,7 @@ import json
 import re
 from datetime import datetime as dt
 
-from youtube_transcript_api import YouTubeTranscriptApi, TranscriptUnavailable, NoTranscriptFound
+from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
 from rich.console import Console
 from rich import print
 
