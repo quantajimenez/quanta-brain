@@ -10,7 +10,7 @@ import yt_dlp
 import whisper
 
 logger = logging.getLogger("youtubeTranscriptUtils")
-whisper_model = whisper.load_model("medium")
+whisper_model = whisper.load_model("small")
 
 def clean_text(text):
     text = text.lower()
