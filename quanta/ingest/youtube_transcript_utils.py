@@ -44,18 +44,19 @@ def download_audio(video_id: str) -> str:
             "-o", output_path,
         ]
 
-        result = subprocess.run(command, capture_output=True)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if result.returncode != 0:
+            print(result.stderr.decode())
             raise RuntimeError("❌ yt-dlp download failed.")
 
-        # Get downloaded webm or mp4 file
+        # Find output file
         input_path = None
         for f in os.listdir(tmpdir):
             if f.endswith((".mp4", ".webm", ".mkv")):
                 input_path = os.path.join(tmpdir, f)
                 break
 
-        if not input_path:
+        if not input_path or not os.path.exists(input_path):
             raise FileNotFoundError("❌ yt-dlp did not produce a usable audio file.")
 
         wav_path = os.path.join(tmpdir, "audio.wav")
@@ -67,8 +68,11 @@ def download_audio(video_id: str) -> str:
             "-c:a", "pcm_s16le",
             wav_path,
         ]
+        ffmpeg_result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if ffmpeg_result.returncode != 0:
+            print(ffmpeg_result.stderr.decode())
+            raise RuntimeError("❌ ffmpeg conversion failed.")
 
         if not os.path.exists(wav_path):
             raise RuntimeError("⚠️ WAV file was not created by ffmpeg.")
