@@ -86,6 +86,7 @@ def download_audio(video_id: str) -> str:
         return wav_path
 
 
+
 def transcribe_audio_with_whisper(video_id: str) -> str:
     try:
         wav_path = download_audio(video_id)
